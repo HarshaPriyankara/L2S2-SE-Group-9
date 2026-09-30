@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import 'customer_screen.dart'; // CustomerScreen එක import කරගන්න
 import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -11,6 +12,9 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  // Select වී ඇති Tab එකේ Index එක
+  int _selectedIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +44,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // Dashboard එකේ මුල් පිටුව (Overview)
+  Widget _buildDashboardOverview() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Financial Dashboard',
+            style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Overview of your business finances',
+            style: TextStyle(fontSize: 16),
+          ),
+          const SizedBox(height: 25),
+
+          // Financial summary cards
+          Wrap(
+            spacing: 15,
+            runSpacing: 15,
+            children: [
+              _summaryCard('Total Income', 'Rs. 0.00', Icons.trending_up),
+              _summaryCard('Total Expenses', 'Rs. 0.00', Icons.money_off),
+              _summaryCard('Net Profit', 'Rs. 0.00', Icons.account_balance_wallet),
+              _summaryCard('Outstanding', 'Rs. 0.00', Icons.pending_actions),
+            ],
+          ),
+          const SizedBox(height: 35),
+          const Text(
+            'Quick Actions',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 15),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create Invoice'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Expense'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // තෝරාගත් Tab එක අනුව ඊට අදාළ Screen එක ලබාදීම
+  Widget _getSelectedScreen() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildDashboardOverview();
+      case 1:
+        return const CustomerScreen(); // Customer Screen එක මෙතැනදී පෙන්නුම් කරයි
+      case 2:
+        return const Center(child: Text('Invoices Page', style: TextStyle(fontSize: 24)));
+      case 3:
+        return const Center(child: Text('Expenses Page', style: TextStyle(fontSize: 24)));
+      default:
+        return _buildDashboardOverview();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -54,7 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
 
-      // Side navigation menu
+      // Side Navigation Menu (Drawer)
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -63,67 +142,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.business,
-                    size: 45,
-                  ),
+                  Icon(Icons.business, size: 45),
                   SizedBox(height: 10),
-                  Text(
-                    'Small Business',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    'Invoice & Expense Management',
-                  ),
+                  Text('Small Business', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text('Invoice & Expense Management'),
                 ],
               ),
             ),
             ListTile(
               leading: const Icon(Icons.dashboard),
               title: const Text('Dashboard'),
+              selected: _selectedIndex == 0,
               onTap: () {
-                Navigator.pop(context);
+                setState(() => _selectedIndex = 0);
+                Navigator.pop(context); // Drawer එක වසා දැමීම
               },
             ),
             ListTile(
               leading: const Icon(Icons.people),
               title: const Text('Customers'),
+              selected: _selectedIndex == 1,
               onTap: () {
-                Navigator.pop(context);
+                setState(() => _selectedIndex = 1);
+                Navigator.pop(context); // Drawer එක වසා දැමීම
               },
             ),
             ListTile(
               leading: const Icon(Icons.receipt_long),
               title: const Text('Invoices'),
+              selected: _selectedIndex == 2,
               onTap: () {
+                setState(() => _selectedIndex = 2);
                 Navigator.pop(context);
               },
             ),
             ListTile(
               leading: const Icon(Icons.money_off),
               title: const Text('Expenses'),
+              selected: _selectedIndex == 3,
               onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.account_balance),
-              title: const Text('Financial Summary'),
-              onTap: () {
+                setState(() => _selectedIndex = 3);
                 Navigator.pop(context);
               },
             ),
             const Divider(),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Settings'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text('Logout', style: TextStyle(color: Colors.red)),
@@ -133,167 +195,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
 
-      // Dashboard content
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Financial Dashboard',
-              style: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Overview of your business finances',
-              style: TextStyle(
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 25),
-
-            // Financial summary cards
-            Wrap(
-              spacing: 15,
-              runSpacing: 15,
-              children: [
-                _summaryCard(
-                  'Total Income',
-                  'Rs. 0.00',
-                  Icons.trending_up,
-                ),
-                _summaryCard(
-                  'Total Expenses',
-                  'Rs. 0.00',
-                  Icons.money_off,
-                ),
-                _summaryCard(
-                  'Net Profit',
-                  'Rs. 0.00',
-                  Icons.account_balance_wallet,
-                ),
-                _summaryCard(
-                  'Outstanding',
-                  'Rs. 0.00',
-                  Icons.pending_actions,
-                ),
-              ],
-            ),
-            const SizedBox(height: 35),
-            const Text(
-              'Quick Actions',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 15),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create Invoice'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Expense'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 35),
-            const Text(
-              'Recent Invoices',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 15),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(30),
-                child: Center(
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.receipt_long,
-                        size: 55,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'No invoices yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      const Text(
-                        'Create your first invoice to get started.',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 30),
-            const Text(
-              'Recent Expenses',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 15),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(30),
-                child: Center(
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.money_off,
-                        size: 55,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'No expenses yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      const Text(
-                        'Your recent expenses will appear here.',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      // Dynamic Body Content
+      body: _getSelectedScreen(),
     );
   }
 
-  // Reusable financial summary card
-  Widget _summaryCard(
-    String title,
-    String value,
-    IconData icon,
-  ) {
+  Widget _summaryCard(String title, String value, IconData icon) {
     return SizedBox(
       width: 220,
       child: Card(
@@ -302,25 +209,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                icon,
-                size: 32,
-              ),
+              Icon(icon, size: 32),
               const SizedBox(height: 15),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                ),
-              ),
+              Text(title, style: const TextStyle(fontSize: 16)),
               const SizedBox(height: 5),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             ],
           ),
         ),

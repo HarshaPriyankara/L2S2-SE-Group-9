@@ -192,6 +192,29 @@ class DatabaseHelper {
     return null; 
   }
   }
+
+  // 1.Get all customers
+Future<List<Map<String, dynamic>>> getCustomers() async {
+  final db = await instance.database;
+  return await db.query('Customers', orderBy: 'CustomerID DESC');
 }
 
-// User Authentication check 
+// 2.Add new customer
+Future<int> insertCustomer(Map<String, dynamic> row) async {
+  final db = await instance.database;
+  return await db.insert('Customers', row);
+}
+
+// 3. Customer Update
+Future<int> updateCustomer(Map<String, dynamic> row) async {
+  final db = await instance.database;
+  int id = row['CustomerID'];
+  return await db.update('Customers', row, where: 'CustomerID = ?', whereArgs: [id]);
+}
+
+// 4. Customer Delete
+Future<int> deleteCustomer(int id) async {
+  final db = await instance.database;
+  return await db.delete('Customers', where: 'CustomerID = ?', whereArgs: [id]);
+}
+}
