@@ -22,7 +22,6 @@ class DatabaseHelper {
       version: 1,
       onCreate: _createDB,
       onConfigure: (db) async {
-        // Foreign Key constraints සක්‍රිය කිරීම
         await db.execute('PRAGMA foreign_keys = ON');
       },
     );
@@ -138,7 +137,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // Initial Default Data (Seed Data) Insert කිරීම
     await _seedDefaultData(db);
   }
 
@@ -172,7 +170,6 @@ class DatabaseHelper {
     ''');
   }
 
-  // Database එක Close කිරීමට
   Future<void> close() async {
     final db = await instance.database;
     db.close();
@@ -208,8 +205,17 @@ Future<int> insertCustomer(Map<String, dynamic> row) async {
 // 3. Customer Update
 Future<int> updateCustomer(Map<String, dynamic> row) async {
   final db = await instance.database;
-  int id = row['CustomerID'];
-  return await db.update('Customers', row, where: 'CustomerID = ?', whereArgs: [id]);
+
+  return await db.update(
+    'Customers',
+    {
+      'CustomerName': row['CustomerName'],
+      'Email': row['Email'],
+      'ContactNumber': row['ContactNumber'],
+    },
+    where: 'CustomerID = ?',
+    whereArgs: [row['CustomerID']],
+  );
 }
 
 // 4. Customer Delete

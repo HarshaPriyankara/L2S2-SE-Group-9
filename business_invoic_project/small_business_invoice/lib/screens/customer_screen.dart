@@ -27,9 +27,9 @@ class _CustomerScreenState extends State<CustomerScreen> {
     });
   }
 void _showCustomerDialog({Map<String, dynamic>? customer}) {
-  final nameController = TextEditingController(text: customer?['CustomerName'] ?? '');
-  final emailController = TextEditingController(text: customer?['Email'] ?? '');
-  final phoneController = TextEditingController(text: customer?['ContactNumber'] ?? '');
+  final nameController = TextEditingController(text: customer?['CustomerName']?.toString() ?? '');
+  final emailController = TextEditingController(text: customer?['Email']?.toString() ?? '');
+  final phoneController = TextEditingController(text: customer?['ContactNumber']?.toString() ?? '');
   final formKey = GlobalKey<FormState>();
 
   showDialog(
@@ -42,7 +42,6 @@ void _showCustomerDialog({Map<String, dynamic>? customer}) {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Customer Name Input
               TextFormField(
                 controller: nameController,
                 decoration: const InputDecoration(
@@ -57,8 +56,6 @@ void _showCustomerDialog({Map<String, dynamic>? customer}) {
                 },
               ),
               const SizedBox(height: 10),
-
-              // Email Input with Validation
               TextFormField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -78,9 +75,6 @@ void _showCustomerDialog({Map<String, dynamic>? customer}) {
                 },
               ),
               const SizedBox(height: 10),
-
-              // Contact Number Input with Validation
-              // Contact Number Input with Validation
               TextFormField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
@@ -91,9 +85,7 @@ void _showCustomerDialog({Map<String, dynamic>? customer}) {
                 ),
                 validator: (val) {
                   if (val != null && val.trim().isNotEmpty) {
-                    // Unused phoneRegex variable kadhun fakt simplePhoneRegex vaparla ahe
                     final simplePhoneRegex = RegExp(r'^\d{10}$');
-
                     if (!simplePhoneRegex.hasMatch(val.trim())) {
                       return 'Enter a valid 10-digit phone number';
                     }
@@ -113,25 +105,40 @@ void _showCustomerDialog({Map<String, dynamic>? customer}) {
         ElevatedButton(
           onPressed: () async {
             if (formKey.currentState!.validate()) {
-              final customerData = {
-                'CustomerName': nameController.text.trim(),
-                'Email': emailController.text.trim(),
-                'ContactNumber': phoneController.text.trim(),
-              };
+              final String name = nameController.text.trim();
+              final String? email = emailController.text.trim().isEmpty ? null : emailController.text.trim();
+              final String? phone = phoneController.text.trim().isEmpty ? null : phoneController.text.trim();
 
-              if (customer == null) {
-                await DatabaseHelper.instance.insertCustomer(customerData);
-              } else {
-                customerData['CustomerID'] = customer['CustomerID'];
-                await DatabaseHelper.instance.updateCustomer(customerData);
-              }
+             final Map<String, dynamic> customerData = {
+              'CustomerName': name,
+              'Email': email,
+              'ContactNumber': phone,
+            };
 
-              if (dialogContext.mounted) {
-                Navigator.of(dialogContext).pop();
-              }
+              try {
+                if (customer == null) {
+                  await DatabaseHelper.instance.insertCustomer(customerData);
+                } else {
+                  customerData['CustomerID'] = customer['CustomerID'];
+                  await DatabaseHelper.instance.updateCustomer(customerData);
+                }
 
-              if (mounted) {
-                _refreshCustomers();
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+
+                if (mounted) {
+                  _refreshCustomers();
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Update failed: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             }
           },
@@ -141,8 +148,6 @@ void _showCustomerDialog({Map<String, dynamic>? customer}) {
     ),
   );
 }
-
-  // Customer ඉවත් කිරීම
   void _deleteCustomer(int id) async {
     await DatabaseHelper.instance.deleteCustomer(id);
     _refreshCustomers();
@@ -151,7 +156,6 @@ void _showCustomerDialog({Map<String, dynamic>? customer}) {
  @override
 Widget build(BuildContext context) {
   return Scaffold(
-    // AppBar එකක් අවශ්‍ය නොවේ, මන්ද Dashboard එකෙහි දැනටමත් AppBar එකක් ඇත
     body: _isLoading
         ? const Center(child: CircularProgressIndicator())
         : _customers.isEmpty
