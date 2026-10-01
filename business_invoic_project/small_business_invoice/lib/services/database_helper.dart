@@ -189,7 +189,8 @@ class DatabaseHelper {
     return null; 
   }
   }
-
+  //-----------------------------------------------------------------------------------
+  // Customer CRUD Operations
   // 1.Get all customers
 Future<List<Map<String, dynamic>>> getCustomers() async {
   final db = await instance.database;
@@ -222,5 +223,43 @@ Future<int> updateCustomer(Map<String, dynamic> row) async {
 Future<int> deleteCustomer(int id) async {
   final db = await instance.database;
   return await db.delete('Customers', where: 'CustomerID = ?', whereArgs: [id]);
+}
+
+//-----------------------------------------------------------------------------------
+//User CRUD Operations
+// 1. Get all Users
+Future<List<Map<String, dynamic>>> getUsers() async {
+  final db = await instance.database;
+  return await db.query('Users', orderBy: 'UserID DESC');
+}
+
+// 2. Insert new User
+Future<int> insertUser(Map<String, dynamic> row) async {
+  final db = await instance.database;
+  return await db.insert('Users', row);
+}
+
+// 3. Update User
+Future<int> updateUser(Map<String, dynamic> row) async {
+  final db = await instance.database;
+  final String id = row['UserID'].toString();
+
+  return await db.update(
+    'Users',
+    {
+      'FullName': row['FullName']?.toString(),
+      'Username': row['Username']?.toString(),
+      'Password': row['Password']?.toString(),
+      'UserRole': row['UserRole']?.toString(),
+    },
+    where: 'UserID = ?',
+    whereArgs: [id],
+  );
+}
+
+// 4. Delete User
+Future<int> deleteUser(int id) async {
+  final db = await instance.database;
+  return await db.delete('Users', where: 'UserID = ?', whereArgs: [id.toString()]);
 }
 }

@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
-import 'customer_screen.dart'; // CustomerScreen එක import කරගන්න
+import 'customer_screen.dart';
+import 'user_screen.dart';
 import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -44,7 +45,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Dashboard එකේ මුල් පිටුව (Overview)
   Widget _buildDashboardOverview() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -103,21 +103,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // තෝරාගත් Tab එක අනුව ඊට අදාළ Screen එක ලබාදීම
   Widget _getSelectedScreen() {
-    switch (_selectedIndex) {
-      case 0:
-        return _buildDashboardOverview();
-      case 1:
-        return const CustomerScreen(); // Customer Screen එක මෙතැනදී පෙන්නුම් කරයි
-      case 2:
-        return const Center(child: Text('Invoices Page', style: TextStyle(fontSize: 24)));
-      case 3:
-        return const Center(child: Text('Expenses Page', style: TextStyle(fontSize: 24)));
-      default:
-        return _buildDashboardOverview();
-    }
+  switch (_selectedIndex) {
+    case 0:
+      return _buildDashboardOverview();
+    case 1:
+      return const CustomerScreen();
+    case 2:
+      return const UserScreen(); // Users page
+    case 3:
+      return const Center(child: Text('Invoices Page', style: TextStyle(fontSize: 24)));
+    case 4:
+      return const Center(child: Text('Expenses Page', style: TextStyle(fontSize: 24)));
+    default:
+      return _buildDashboardOverview();
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -182,6 +183,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               selected: _selectedIndex == 3,
               onTap: () {
                 setState(() => _selectedIndex = 3);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.manage_accounts),
+              title: const Text('Users'),
+              selected: _selectedIndex == 2,
+              onTap: () {
+                setState(() => _selectedIndex = 2);
                 Navigator.pop(context);
               },
             ),
