@@ -15,7 +15,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // Select වී ඇති Tab එකේ Index එක
   int _selectedIndex = 0;
 
   @override
