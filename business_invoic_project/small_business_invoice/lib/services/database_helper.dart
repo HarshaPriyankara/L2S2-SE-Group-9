@@ -300,4 +300,56 @@ Future<int> deleteSupplier(int id) async {
   final db = await instance.database;
   return await db.delete('Suppliers', where: 'SupplierID = ?', whereArgs: [id]);
 }
+
+//-----------------------------------------------------------------------------------
+// Product CRUD Operations
+// 1. Get all Products with Category details
+Future<List<Map<String, dynamic>>> getProducts() async {
+  final db = await instance.database;
+  return await db.rawQuery('''
+    SELECT P.*, C.CategoryName 
+    FROM Products P 
+    LEFT JOIN Categories C ON P.CategoryID = C.CategoryID 
+    ORDER BY P.ProductID DESC
+  ''');
+}
+
+// 2. Insert new Product
+Future<int> insertProduct(Map<String, dynamic> row) async {
+  final db = await instance.database;
+  return await db.insert('Products', row);
+}
+
+// 3. Update Product
+Future<int> updateProduct(Map<String, dynamic> row) async {
+  final db = await instance.database;
+  final String id = row['ProductID'].toString();
+
+  return await db.update(
+    'Products',
+    {
+      'ProductName': row['ProductName']?.toString(),
+      'CategoryID': row['CategoryID'],
+      'StockQuantity': row['StockQuantity'],
+      'MinimumStock': row['MinimumStock'],
+      'SupplierPrice': row['SupplierPrice'],
+      'NormalPrice': row['NormalPrice'],
+      'OurPrice': row['OurPrice'],
+    },
+    where: 'ProductID = ?',
+    whereArgs: [id],
+  );
+}
+
+// 4. Delete Product
+Future<int> deleteProduct(int id) async {
+  final db = await instance.database;
+  return await db.delete('Products', where: 'ProductID = ?', whereArgs: [id.toString()]);
+}
+
+// 5. Get Categories for Dropdown
+Future<List<Map<String, dynamic>>> getCategories() async {
+  final db = await instance.database;
+  return await db.query('Categories', orderBy: 'CategoryName ASC');
+}
 }

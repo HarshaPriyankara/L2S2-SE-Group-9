@@ -4,6 +4,7 @@ import 'package:window_manager/window_manager.dart';
 import 'customer_screen.dart';
 import 'supplier_screen.dart';
 import 'user_screen.dart';
+import 'inventory_screen.dart';
 import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -109,14 +110,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 0:
         return _buildDashboardOverview();
       case 1:
-        return const CustomerScreen();
+        return const InventoryScreen();
       case 2:
-        return const SupplierScreen();
+        return const CustomerScreen();
       case 3:
-        return const Center(child: Text('Invoices Page', style: TextStyle(fontSize: 24)));
+        return const SupplierScreen();
       case 4:
-        return const Center(child: Text('Expenses Page', style: TextStyle(fontSize: 24)));
+        return const Center(child: Text('Invoices Page', style: TextStyle(fontSize: 24)));
       case 5:
+        return const Center(child: Text('Expenses Page', style: TextStyle(fontSize: 24)));
+      case 6:
         return const UserScreen();
       default:
         return _buildDashboardOverview();
@@ -159,30 +162,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
               selected: _selectedIndex == 0,
               onTap: () {
                 setState(() => _selectedIndex = 0);
-                Navigator.pop(context); // Drawer එක වසා දැමීම
+                Navigator.pop(context); 
               },
             ),
+
             ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text('Customers'),
+              leading: const Icon(Icons.inventory),
+              title: const Text('Inventory'),
               selected: _selectedIndex == 1,
               onTap: () {
                 setState(() => _selectedIndex = 1);
-                Navigator.pop(context); // Drawer එක වසා දැමීම
+                Navigator.pop(context);
+              },
+            ),
+
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Customers'),
+              selected: _selectedIndex == 2,
+              onTap: () {
+                setState(() => _selectedIndex = 2);
+                Navigator.pop(context); 
               },
             ),
             ListTile(
               leading: const Icon(Icons.local_shipping),
               title: const Text('Suppliers'),
-              selected: _selectedIndex == 2,
-              onTap: () {
-                setState(() => _selectedIndex = 2);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.receipt_long),
-              title: const Text('Invoices'),
               selected: _selectedIndex == 3,
               onTap: () {
                 setState(() => _selectedIndex = 3);
@@ -190,8 +195,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.money_off),
-              title: const Text('Expenses'),
+              leading: const Icon(Icons.receipt_long),
+              title: const Text('Invoices'),
               selected: _selectedIndex == 4,
               onTap: () {
                 setState(() => _selectedIndex = 4);
@@ -199,11 +204,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.manage_accounts),
-              title: const Text('Users'),
+              leading: const Icon(Icons.money_off),
+              title: const Text('Expenses'),
               selected: _selectedIndex == 5,
               onTap: () {
                 setState(() => _selectedIndex = 5);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.manage_accounts),
+              title: const Text('Users'),
+              selected: _selectedIndex == 6,
+              onTap: () {
+                setState(() => _selectedIndex = 6);
                 Navigator.pop(context);
               },
             ),
