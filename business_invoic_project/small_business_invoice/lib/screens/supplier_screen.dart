@@ -1,26 +1,26 @@
 import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 
-class CustomerScreen extends StatefulWidget {
-  const CustomerScreen({super.key});
+class SupplierScreen extends StatefulWidget {
+  const SupplierScreen({super.key});
 
   @override
-  State<CustomerScreen> createState() => _CustomerScreenState();
+  State<SupplierScreen> createState() => _SupplierScreenState();
 }
 
-class _CustomerScreenState extends State<CustomerScreen> {
-  List<Map<String, dynamic>> _customers = [];
-  List<Map<String, dynamic>> _filteredCustomers = [];
+class _SupplierScreenState extends State<SupplierScreen> {
+  List<Map<String, dynamic>> _suppliers = [];
+  List<Map<String, dynamic>> _filteredSuppliers = [];
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
 
-  // Default customer (Cash Customer) delete karanna denne naha
-  static const int _defaultCustomerId = 1;
+  // Default supplier (ID 1) delete karanna denne naha
+  static const int _defaultSupplierId = 1;
 
   @override
   void initState() {
     super.initState();
-    _refreshCustomers();
+    _refreshSuppliers();
   }
 
   @override
@@ -29,47 +29,46 @@ class _CustomerScreenState extends State<CustomerScreen> {
     super.dispose();
   }
 
-  void _refreshCustomers() async {
+  void _refreshSuppliers() async {
     setState(() => _isLoading = true);
-    final data = await DatabaseHelper.instance.getCustomers();
+    final data = await DatabaseHelper.instance.getSuppliers();
     if (!mounted) return;
     setState(() {
-      _customers = data;
+      _suppliers = data;
       _isLoading = false;
     });
     _applySearch(_searchController.text);
   }
 
-  // Search filter
   void _applySearch(String query) {
     final q = query.trim().toLowerCase();
     setState(() {
       if (q.isEmpty) {
-        _filteredCustomers = List.from(_customers);
+        _filteredSuppliers = List.from(_suppliers);
       } else {
-        _filteredCustomers = _customers.where((c) {
-          final name = (c['CustomerName'] ?? '').toString().toLowerCase();
-          final phone = (c['ContactNumber'] ?? '').toString().toLowerCase();
-          final email = (c['Email'] ?? '').toString().toLowerCase();
-          return name.contains(q) || phone.contains(q) || email.contains(q);
+        _filteredSuppliers = _suppliers.where((s) {
+          final name = (s['SupplierName'] ?? '').toString().toLowerCase();
+          final company = (s['SupplierCompany'] ?? '').toString().toLowerCase();
+          final phone = (s['ContactNumber'] ?? '').toString().toLowerCase();
+          return name.contains(q) || company.contains(q) || phone.contains(q);
         }).toList();
       }
     });
   }
 
-  void _showCustomerDialog({Map<String, dynamic>? customer}) {
+  void _showSupplierDialog({Map<String, dynamic>? supplier}) {
     final nameController =
-        TextEditingController(text: customer?['CustomerName']?.toString() ?? '');
-    final emailController =
-        TextEditingController(text: customer?['Email']?.toString() ?? '');
-    final phoneController =
-        TextEditingController(text: customer?['ContactNumber']?.toString() ?? '');
+        TextEditingController(text: supplier?['SupplierName']?.toString() ?? '');
+    final companyController = TextEditingController(
+        text: supplier?['SupplierCompany']?.toString() ?? '');
+    final phoneController = TextEditingController(
+        text: supplier?['ContactNumber']?.toString() ?? '');
     final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(customer == null ? 'Add New Customer' : 'Edit Customer'),
+        title: Text(supplier == null ? 'Add New Supplier' : 'Edit Supplier'),
         content: Form(
           key: formKey,
           child: SingleChildScrollView(
@@ -79,35 +78,20 @@ class _CustomerScreenState extends State<CustomerScreen> {
                 TextFormField(
                   controller: nameController,
                   decoration: const InputDecoration(
-                    labelText: 'Customer Name *',
+                    labelText: 'Supplier Name *',
                     prefixIcon: Icon(Icons.person),
                   ),
-                  validator: (val) {
-                    if (val == null || val.trim().isEmpty) {
-                      return 'Please enter customer name';
-                    }
-                    return null;
-                  },
+                  validator: (val) => (val == null || val.trim().isEmpty)
+                      ? 'Please enter supplier name'
+                      : null,
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
-                  controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
+                  controller: companyController,
                   decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email),
-                    hintText: 'example@mail.com',
+                    labelText: 'Company',
+                    prefixIcon: Icon(Icons.business),
                   ),
-                  validator: (val) {
-                    if (val != null && val.trim().isNotEmpty) {
-                      final emailRegex =
-                          RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                      if (!emailRegex.hasMatch(val.trim())) {
-                        return 'Enter a valid email address';
-                      }
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
@@ -120,8 +104,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                   ),
                   validator: (val) {
                     if (val != null && val.trim().isNotEmpty) {
-                      final simplePhoneRegex = RegExp(r'^\d{10}$');
-                      if (!simplePhoneRegex.hasMatch(val.trim())) {
+                      if (!RegExp(r'^\d{10}$').hasMatch(val.trim())) {
                         return 'Enter a valid 10-digit phone number';
                       }
                     }
@@ -140,40 +123,31 @@ class _CustomerScreenState extends State<CustomerScreen> {
           ElevatedButton(
             onPressed: () async {
               if (formKey.currentState!.validate()) {
-                final String name = nameController.text.trim();
-                final String? email = emailController.text.trim().isEmpty
-                    ? null
-                    : emailController.text.trim();
-                final String? phone = phoneController.text.trim().isEmpty
-                    ? null
-                    : phoneController.text.trim();
-
-                final Map<String, dynamic> customerData = {
-                  'CustomerName': name,
-                  'Email': email,
-                  'ContactNumber': phone,
+                final Map<String, dynamic> supplierData = {
+                  'SupplierName': nameController.text.trim(),
+                  'SupplierCompany': companyController.text.trim(),
+                  'ContactNumber': phoneController.text.trim(),
                 };
 
                 try {
-                  if (customer == null) {
-                    await DatabaseHelper.instance.insertCustomer(customerData);
+                  if (supplier == null) {
+                    await DatabaseHelper.instance.insertSupplier(supplierData);
                   } else {
-                    customerData['CustomerID'] = customer['CustomerID'];
-                    await DatabaseHelper.instance.updateCustomer(customerData);
+                    supplierData['SupplierID'] = supplier['SupplierID'];
+                    await DatabaseHelper.instance.updateSupplier(supplierData);
                   }
 
                   if (dialogContext.mounted) {
                     Navigator.of(dialogContext).pop();
                   }
-
                   if (mounted) {
-                    _refreshCustomers();
+                    _refreshSuppliers();
                   }
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Update failed: ${e.toString()}'),
+                        content: Text('Error: ${e.toString()}'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -181,25 +155,53 @@ class _CustomerScreenState extends State<CustomerScreen> {
                 }
               }
             },
-            child: Text(customer == null ? 'Save' : 'Update'),
+            child: Text(supplier == null ? 'Save' : 'Update'),
           ),
         ],
       ),
     );
   }
 
-  void _deleteCustomer(int id) async {
-    if (id == _defaultCustomerId) {
+  void _confirmDelete(Map<String, dynamic> supplier) {
+    final int id = supplier['SupplierID'];
+
+    if (id == _defaultSupplierId) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Default customer cannot be deleted.'),
+          content: Text('Default supplier cannot be deleted.'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
-    await DatabaseHelper.instance.deleteCustomer(id);
-    _refreshCustomers();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Supplier'),
+        content: Text(
+            'Are you sure you want to delete "${supplier['SupplierName']}"?\n\n'
+            'Products linked to this supplier will be left without a supplier.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await DatabaseHelper.instance.deleteSupplier(id);
+              if (mounted) _refreshSuppliers();
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSearchBar() {
@@ -209,7 +211,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
         controller: _searchController,
         onChanged: _applySearch,
         decoration: InputDecoration(
-          hintText: 'Search by name, phone or email...',
+          hintText: 'Search by name, company or phone...',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
@@ -220,9 +222,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
                   },
                 )
               : null,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           filled: true,
           fillColor: Colors.white,
         ),
@@ -234,43 +234,45 @@ class _CustomerScreenState extends State<CustomerScreen> {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_customers.isEmpty) {
-      return const Center(child: Text('No customers found.'));
+    if (_suppliers.isEmpty) {
+      return const Center(child: Text('No suppliers found.'));
     }
-    if (_filteredCustomers.isEmpty) {
+    if (_filteredSuppliers.isEmpty) {
       return const Center(child: Text('No results found.'));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _filteredCustomers.length,
+      itemCount: _filteredSuppliers.length,
       itemBuilder: (context, index) {
-        final customer = _filteredCustomers[index];
+        final supplier = _filteredSuppliers[index];
+        final String name = supplier['SupplierName'] ?? '';
+        final String company = (supplier['SupplierCompany'] ?? '').toString();
+        final String phone = (supplier['ContactNumber'] ?? '').toString();
+        final bool isDefault = supplier['SupplierID'] == _defaultSupplierId;
+
         return Card(
           child: ListTile(
             leading: const CircleAvatar(
-              backgroundColor: Colors.blue,
-              child: Icon(Icons.person, color: Colors.white),
+              backgroundColor: Colors.teal,
+              child: Icon(Icons.local_shipping, color: Colors.white),
             ),
-            title: Text(customer['CustomerName'],
+            title: Text(name,
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(
-              'Phone: ${customer['ContactNumber'] ?? 'N/A'} | Email: ${customer['Email'] ?? 'N/A'}',
+              'Company: ${company.isEmpty ? 'N/A' : company} | '
+              'Phone: ${phone.isEmpty ? 'N/A' : phone}',
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
                   icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: () => _showCustomerDialog(customer: customer),
+                  onPressed: () => _showSupplierDialog(supplier: supplier),
                 ),
                 IconButton(
-                  icon: Icon(
-                    Icons.delete,
-                    color: customer['CustomerID'] == _defaultCustomerId
-                        ? Colors.grey
-                        : Colors.red,
-                  ),
-                  onPressed: () => _deleteCustomer(customer['CustomerID']),
+                  icon: Icon(Icons.delete,
+                      color: isDefault ? Colors.grey : Colors.red),
+                  onPressed: () => _confirmDelete(supplier),
                 ),
               ],
             ),
@@ -290,9 +292,9 @@ class _CustomerScreenState extends State<CustomerScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCustomerDialog(),
+        onPressed: () => _showSupplierDialog(),
         icon: const Icon(Icons.add),
-        label: const Text('Add Customer'),
+        label: const Text('Add Supplier'),
       ),
     );
   }

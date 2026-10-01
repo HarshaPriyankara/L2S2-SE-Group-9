@@ -221,6 +221,7 @@ Future<int> updateCustomer(Map<String, dynamic> row) async {
 
 // 4. Customer Delete
 Future<int> deleteCustomer(int id) async {
+  if (id == 1) return 0; // Default customer protect
   final db = await instance.database;
   return await db.delete('Customers', where: 'CustomerID = ?', whereArgs: [id]);
 }
@@ -259,7 +260,44 @@ Future<int> updateUser(Map<String, dynamic> row) async {
 
 // 4. Delete User
 Future<int> deleteUser(int id) async {
+  if (id == 1 || id == 2) return 0; // Default users protect
   final db = await instance.database;
   return await db.delete('Users', where: 'UserID = ?', whereArgs: [id.toString()]);
+}
+
+//-----------------------------------------------------------------------------------
+// Supplier CRUD Operations
+// 1. Get all suppliers
+Future<List<Map<String, dynamic>>> getSuppliers() async {
+  final db = await instance.database;
+  return await db.query('Suppliers', orderBy: 'SupplierID DESC');
+}
+
+// 2. Insert new supplier
+Future<int> insertSupplier(Map<String, dynamic> row) async {
+  final db = await instance.database;
+  return await db.insert('Suppliers', row);
+}
+
+// 3. Update supplier
+Future<int> updateSupplier(Map<String, dynamic> row) async {
+  final db = await instance.database;
+  return await db.update(
+    'Suppliers',
+    {
+      'SupplierName': row['SupplierName'],
+      'SupplierCompany': row['SupplierCompany'],
+      'ContactNumber': row['ContactNumber'],
+    },
+    where: 'SupplierID = ?',
+    whereArgs: [row['SupplierID']],
+  );
+}
+
+// 4. Delete supplier
+Future<int> deleteSupplier(int id) async {
+  if (id == 1) return 0; // Default supplier protect
+  final db = await instance.database;
+  return await db.delete('Suppliers', where: 'SupplierID = ?', whereArgs: [id]);
 }
 }

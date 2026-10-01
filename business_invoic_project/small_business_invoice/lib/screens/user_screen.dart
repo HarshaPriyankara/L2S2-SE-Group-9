@@ -14,6 +14,9 @@ class _UserScreenState extends State<UserScreen> {
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
 
+  // Default users (Admin & Cashier) delete karanna denne naha
+  static const List<int> _defaultUserIds = [1, 2];
+
   @override
   void initState() {
     super.initState();
@@ -181,6 +184,15 @@ class _UserScreenState extends State<UserScreen> {
   }
 
   void _deleteUser(int id) async {
+    if (_defaultUserIds.contains(id)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Default users cannot be deleted.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     await DatabaseHelper.instance.deleteUser(id);
     _refreshUsers();
   }
@@ -253,7 +265,12 @@ class _UserScreenState extends State<UserScreen> {
                   onPressed: () => _showUserDialog(user: user),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
+                  icon: Icon(
+                    Icons.delete,
+                    color: _defaultUserIds.contains(user['UserID'])
+                        ? Colors.grey
+                        : Colors.red,
+                  ),
                   onPressed: () => _deleteUser(user['UserID']),
                 ),
               ],

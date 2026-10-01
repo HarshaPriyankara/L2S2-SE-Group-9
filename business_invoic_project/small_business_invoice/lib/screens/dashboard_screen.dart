@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'customer_screen.dart';
+import 'supplier_screen.dart';
 import 'user_screen.dart';
 import 'login_screen.dart';
 
@@ -104,21 +105,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _getSelectedScreen() {
-  switch (_selectedIndex) {
-    case 0:
-      return _buildDashboardOverview();
-    case 1:
-      return const CustomerScreen();
-    case 2:
-      return const UserScreen(); // Users page
-    case 3:
-      return const Center(child: Text('Invoices Page', style: TextStyle(fontSize: 24)));
-    case 4:
-      return const Center(child: Text('Expenses Page', style: TextStyle(fontSize: 24)));
-    default:
-      return _buildDashboardOverview();
+    switch (_selectedIndex) {
+      case 0:
+        return _buildDashboardOverview();
+      case 1:
+        return const CustomerScreen();
+      case 2:
+        return const SupplierScreen();
+      case 3:
+        return const Center(child: Text('Invoices Page', style: TextStyle(fontSize: 24)));
+      case 4:
+        return const Center(child: Text('Expenses Page', style: TextStyle(fontSize: 24)));
+      case 5:
+        return const UserScreen();
+      default:
+        return _buildDashboardOverview();
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -169,8 +172,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.receipt_long),
-              title: const Text('Invoices'),
+              leading: const Icon(Icons.local_shipping),
+              title: const Text('Suppliers'),
               selected: _selectedIndex == 2,
               onTap: () {
                 setState(() => _selectedIndex = 2);
@@ -178,8 +181,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.money_off),
-              title: const Text('Expenses'),
+              leading: const Icon(Icons.receipt_long),
+              title: const Text('Invoices'),
               selected: _selectedIndex == 3,
               onTap: () {
                 setState(() => _selectedIndex = 3);
@@ -187,11 +190,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.money_off),
+              title: const Text('Expenses'),
+              selected: _selectedIndex == 4,
+              onTap: () {
+                setState(() => _selectedIndex = 4);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.manage_accounts),
               title: const Text('Users'),
-              selected: _selectedIndex == 2,
+              selected: _selectedIndex == 5,
               onTap: () {
-                setState(() => _selectedIndex = 2);
+                setState(() => _selectedIndex = 5);
                 Navigator.pop(context);
               },
             ),
