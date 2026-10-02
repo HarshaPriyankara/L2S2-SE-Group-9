@@ -303,13 +303,14 @@ Future<int> deleteSupplier(int id) async {
 
 //-----------------------------------------------------------------------------------
 // Product CRUD Operations
-// 1. Get all Products with Category details
+// 1. Get all Products with Category & Supplier details
 Future<List<Map<String, dynamic>>> getProducts() async {
   final db = await instance.database;
   return await db.rawQuery('''
-    SELECT P.*, C.CategoryName 
-    FROM Products P 
-    LEFT JOIN Categories C ON P.CategoryID = C.CategoryID 
+    SELECT P.*, C.CategoryName, S.SupplierName
+    FROM Products P
+    LEFT JOIN Categories C ON P.CategoryID = C.CategoryID
+    LEFT JOIN Suppliers S ON P.SupplierID = S.SupplierID
     ORDER BY P.ProductID DESC
   ''');
 }
@@ -330,6 +331,7 @@ Future<int> updateProduct(Map<String, dynamic> row) async {
     {
       'ProductName': row['ProductName']?.toString(),
       'CategoryID': row['CategoryID'],
+      'SupplierID': row['SupplierID'],
       'StockQuantity': row['StockQuantity'],
       'MinimumStock': row['MinimumStock'],
       'SupplierPrice': row['SupplierPrice'],
@@ -351,5 +353,27 @@ Future<int> deleteProduct(int id) async {
 Future<List<Map<String, dynamic>>> getCategories() async {
   final db = await instance.database;
   return await db.query('Categories', orderBy: 'CategoryName ASC');
+}
+
+// 6. Add new Category
+Future<int> insertCategory(String name) async {
+  final db = await instance.database;
+  return await db.insert('Categories', {'CategoryName': name});
+}
+
+// 7. Delete Category (default category protect)
+Future<int> deleteCategory(int id) async {
+  if (id == 1) return 0;
+  final db = await instance.database;
+  return await db.delete('Categories', where: 'CategoryID = ?', whereArgs: [id]);
+}
+
+// 8. Adjust stock (+ add / - remove)
+Future<int> adjustStock(int id, double qty) async {
+  final db = await instance.database;
+  return await db.rawUpdate(
+    'UPDATE Products SET StockQuantity = StockQuantity + ? WHERE ProductID = ?',
+    [qty, id],
+  );
 }
 }
