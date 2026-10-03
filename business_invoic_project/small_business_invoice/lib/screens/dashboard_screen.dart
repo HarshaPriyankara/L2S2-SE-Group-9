@@ -5,6 +5,7 @@ import 'customer_screen.dart';
 import 'supplier_screen.dart';
 import 'user_screen.dart';
 import 'inventory_screen.dart';
+import 'invoice_screen.dart';
 import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -115,7 +116,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 3:
         return const SupplierScreen();
       case 4:
-        return const Center(child: Text('Invoices Page', style: TextStyle(fontSize: 24)));
+        return const InvoiceScreen();
       case 5:
         return const Center(child: Text('Expenses Page', style: TextStyle(fontSize: 24)));
       case 6:

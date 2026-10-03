@@ -376,4 +376,86 @@ Future<int> adjustStock(int id, double qty) async {
     [qty, id],
   );
 }
+
+// -----------------------------------------------------------------------------------
+// Invoice Operations
+
+// 1. add new Invoice and reduce stock from inventory
+Future<int> insertSale(Map<String, dynamic> saleData, List<Map<String, dynamic>> items) async {
+  final db = await instance.database;
+  int billId = 0;
+
+  await db.transaction((txn) async {
+    // stock check (race / negative stock protect)
+    for (final item in items) {
+      final r = await txn.rawQuery(
+        'SELECT StockQuantity FROM Products WHERE ProductID = ?',
+        [item['ProductID']],
+      );
+      final stock = (r.first['StockQuantity'] as num?)?.toDouble() ?? 0;
+      if (stock < (item['Quantity'] as num).toDouble()) {
+        throw Exception('Not enough stock for ${item['ProductName']}');
+      }
+    }
+
+    billId = await txn.insert('Sales', saleData);
+
+    for (final item in items) {
+      await txn.insert('SaleItems', {
+        'BillID': billId,
+        'ProductID': item['ProductID'],
+        'Quantity': item['Quantity'],
+        'UnitPrice': item['UnitPrice'],
+        'SubTotal': item['SubTotal'],
+      });
+
+      await txn.rawUpdate(
+        'UPDATE Products SET StockQuantity = StockQuantity - ? WHERE ProductID = ?',
+        [item['Quantity'], item['ProductID']],
+      );
+    }
+  });
+
+  return billId;
+}
+
+// 2. get all sales
+Future<List<Map<String, dynamic>>> getSales() async {
+  final db = await instance.database;
+  return await db.rawQuery('''
+    SELECT S.*, C.CustomerName 
+    FROM Sales S
+    LEFT JOIN Customers C ON S.CustomerID = C.CustomerID
+    ORDER BY S.BillID DESC
+  ''');
+}
+
+// 3. get sale details for PDF generation
+Future<Map<String, dynamic>?> getSaleDetails(int billId) async {
+  final db = await instance.database;
+
+  final sales = await db.rawQuery('''
+    SELECT S.*, C.CustomerName, C.ContactNumber, C.Email
+    FROM Sales S
+    LEFT JOIN Customers C ON S.CustomerID = C.CustomerID
+    WHERE S.BillID = ?
+  ''', [billId]);
+
+  if (sales.isEmpty) return null;
+
+  final items = await db.rawQuery('''
+    SELECT SI.*, P.ProductName
+    FROM SaleItems SI
+    LEFT JOIN Products P ON SI.ProductID = P.ProductID
+    WHERE SI.BillID = ?
+  ''', [billId]);
+
+  final store = await db.query('Store', limit: 1);
+
+  return {
+    'sale': sales.first,
+    'items': items,
+    'store': store.isNotEmpty ? store.first : {'StoreName': 'EasyBill POS'},
+  };
+}
 }
