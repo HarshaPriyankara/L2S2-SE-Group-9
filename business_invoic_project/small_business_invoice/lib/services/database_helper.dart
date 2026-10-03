@@ -170,11 +170,11 @@ class DatabaseHelper {
     // Default Users
     await db.rawInsert('''
       INSERT OR IGNORE INTO Users (UserID, FullName, Username, Password, UserRole) 
-      VALUES (1, 'Saman', 'Admin', '123', 'Admin')
+      VALUES (1, 'Default Admin', 'Admin', '123', 'Admin')
     ''');
     await db.rawInsert('''
       INSERT OR IGNORE INTO Users (UserID, FullName, Username, Password, UserRole) 
-      VALUES (2, 'Kumara', 'Cashier', '123', 'Cashier')
+      VALUES (2, 'Default Cashier', 'Cashier', '123', 'Cashier')
     ''');
 
     // Default Category
