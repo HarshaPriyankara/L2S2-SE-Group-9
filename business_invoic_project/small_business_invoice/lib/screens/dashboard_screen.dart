@@ -151,7 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Icon(Icons.business, size: 45),
                   SizedBox(height: 10),
-                  Text('Small Business', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text('EasyBill', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   Text('Invoice & Expense Management'),
                 ],
               ),
