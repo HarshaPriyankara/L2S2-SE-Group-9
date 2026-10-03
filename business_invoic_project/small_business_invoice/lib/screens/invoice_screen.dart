@@ -6,14 +6,30 @@ import '../services/pdf_service.dart';
 class _CartLine {
   final Map<String, dynamic> product;
   double qty = 1;
-  final double unitPrice;
+  final double unitPrice; // Our Price
+  final double normalPrice; // Normal Price (never lower than Our Price)
 
-  _CartLine({required this.product, required this.unitPrice});
+  _CartLine({
+    required this.product,
+    required this.unitPrice,
+    required this.normalPrice,
+  });
 
   int get productId => product['ProductID'] as int;
   String get name => product['ProductName'].toString();
   double get stock => (product['StockQuantity'] as num?)?.toDouble() ?? 0;
   double get subTotal => qty * unitPrice;
+  double get normalSubTotal => qty * normalPrice;
+  // Discount for this line = (Normal Price - Our Price) x Qty
+  double get discount => normalSubTotal - subTotal;
+}
+
+/// Normal price from DB. If it is not set (0) or lower than Our Price,
+/// fall back to Our Price so the discount is never negative.
+double _normalOf(Map<String, dynamic> p) {
+  final our = (p['OurPrice'] as num?)?.toDouble() ?? 0;
+  final normal = (p['NormalPrice'] as num?)?.toDouble() ?? 0;
+  return normal > our ? normal : our;
 }
 
 class InvoiceScreen extends StatefulWidget {
@@ -39,7 +55,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   int _tab = 0; // 0 = New Sale, 1 = History
 
   final _searchController = TextEditingController();
-  final _discountController = TextEditingController();
   final _cashController = TextEditingController();
 
   @override
@@ -51,7 +66,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    _discountController.dispose();
     _cashController.dispose();
     super.dispose();
   }
@@ -60,9 +74,12 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   String _fmtQty(double d) =>
       d == d.roundToDouble() ? d.toInt().toString() : d.toString();
 
-  double get _subTotal => _cart.fold(0.0, (s, l) => s + l.subTotal);
-  double get _discount => double.tryParse(_discountController.text.trim()) ?? 0;
-  double get _total => (_subTotal - _discount).clamp(0, double.infinity);
+  // Normal total = sum(Normal Price x Qty)
+  double get _normalTotal => _cart.fold(0.0, (s, l) => s + l.normalSubTotal);
+  // Total = sum(Our Price x Qty)  -> amount customer pays
+  double get _total => _cart.fold(0.0, (s, l) => s + l.subTotal);
+  // Discount = Normal Total - Our Total
+  double get _discount => _normalTotal - _total;
   double get _cashReceived => _cashController.text.trim().isEmpty
       ? _total
       : (double.tryParse(_cashController.text.trim()) ?? 0);
@@ -123,6 +140,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       setState(() => _cart.add(_CartLine(
             product: p,
             unitPrice: (p['OurPrice'] as num?)?.toDouble() ?? 0,
+            normalPrice: _normalOf(p),
           )));
     }
   }
@@ -188,7 +206,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       _cart.clear();
       _customerId = 1;
       _paymentType = 'CASH';
-      _discountController.clear();
       _cashController.clear();
     });
   }
@@ -209,10 +226,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   // ------------------------------------------------------------ checkout
   Future<void> _checkout() async {
     if (_cart.isEmpty) return;
-    if (_discount < 0 || _discount > _subTotal) {
-      _msg('Discount must be between 0 and the sub total');
-      return;
-    }
     if (_paymentType == 'CASH' && _cashReceived < _total) {
       _msg('Cash received is less than the total');
       return;
@@ -235,6 +248,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                 'ProductID': l.productId,
                 'ProductName': l.name, // used only for stock error message
                 'Quantity': l.qty,
+                'NormalPrice': l.normalPrice,
                 'UnitPrice': l.unitPrice,
                 'SubTotal': l.subTotal,
               })
@@ -296,6 +310,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                     final p = _filteredProducts[i];
                     final stock = (p['StockQuantity'] as num?)?.toDouble() ?? 0;
                     final price = (p['OurPrice'] as num?)?.toDouble() ?? 0;
+                    final normal = _normalOf(p);
                     final inCart = _cart
                         .where((l) => l.productId == p['ProductID'])
                         .fold(0.0, (s, l) => s + l.qty);
@@ -326,6 +341,18 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                                 child: Chip(
                                   label: Text('x${_fmtQty(inCart)}'),
                                   visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                            if (normal > price)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: Text(
+                                  normal.toStringAsFixed(2),
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
                                 ),
                               ),
                             Text('Rs. ${price.toStringAsFixed(2)}',
@@ -421,7 +448,9 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                                       style: const TextStyle(
                                           fontWeight: FontWeight.w600)),
                                   Text(
-                                      'Rs. ${line.unitPrice.toStringAsFixed(2)} each',
+                                      line.normalPrice > line.unitPrice
+                                          ? 'Rs. ${line.unitPrice.toStringAsFixed(2)} each (Normal ${line.normalPrice.toStringAsFixed(2)})'
+                                          : 'Rs. ${line.unitPrice.toStringAsFixed(2)} each',
                                       style: const TextStyle(
                                           fontSize: 12, color: Colors.grey)),
                                 ],
@@ -481,25 +510,10 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                _totalRow('Sub Total', _subTotal),
+                _totalRow('Normal Total', _normalTotal),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Expanded(child: Text('Discount (Rs.)')),
-                    SizedBox(
-                      width: 120,
-                      child: TextField(
-                        controller: _discountController,
-                        onChanged: (_) => setState(() {}),
-                        textAlign: TextAlign.right,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        decoration: const InputDecoration(
-                            isDense: true, hintText: '0.00'),
-                      ),
-                    ),
-                  ],
-                ),
+                _totalRow('Discount', _discount,
+                    color: _discount > 0 ? Colors.green : null),
                 const Divider(height: 24),
                 _totalRow('TOTAL', _total, big: true),
                 const SizedBox(height: 12),

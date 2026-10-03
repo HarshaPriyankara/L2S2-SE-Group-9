@@ -19,7 +19,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2, // 1 -> 2 (ExpenseCategories + new Expenses)
+      version: 3, // 2 -> 3 (SaleItems.NormalPrice)
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
       onConfigure: (db) async {
@@ -107,6 +107,7 @@ class DatabaseHelper {
         BillID INTEGER,
         ProductID INTEGER,
         Quantity REAL,
+        NormalPrice REAL,
         UnitPrice REAL,
         SubTotal REAL,
         FOREIGN KEY (BillID) REFERENCES Sales(BillID) ON DELETE CASCADE,
@@ -163,6 +164,11 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       await db.execute('DROP TABLE IF EXISTS Expenses');
       await _createExpenseTables(db);
+    }
+    if (oldVersion < 3) {
+      // Old invoices: normal price = unit price (no discount info was saved)
+      await db.execute('ALTER TABLE SaleItems ADD COLUMN NormalPrice REAL');
+      await db.execute('UPDATE SaleItems SET NormalPrice = UnitPrice');
     }
   }
 
@@ -439,6 +445,7 @@ class DatabaseHelper {
           'BillID': billId,
           'ProductID': item['ProductID'],
           'Quantity': item['Quantity'],
+          'NormalPrice': item['NormalPrice'],
           'UnitPrice': item['UnitPrice'],
           'SubTotal': item['SubTotal'],
         });

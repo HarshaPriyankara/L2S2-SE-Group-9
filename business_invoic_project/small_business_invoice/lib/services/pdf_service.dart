@@ -6,12 +6,23 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 class PdfService {
+  // 1.0 -> "1", 2.5 -> "2.5"
+  static String _fmtQty(dynamic q) {
+    final d = (q as num).toDouble();
+    return d == d.roundToDouble() ? d.toInt().toString() : d.toString();
+  }
+
   static Future<Uint8List> generateInvoicePdf(Map<String, dynamic> saleDetails) async {
     final pdf = pw.Document();
 
     final sale = saleDetails['sale'];
     final List items = saleDetails['items'];
     final store = saleDetails['store'];
+
+    // Normal Total = Total + Discount  (Discount = sum of (Normal - Our) x Qty)
+    final double total = (sale['TotalAmount'] as num).toDouble();
+    final double discount = (sale['TotalDiscount'] as num).toDouble();
+    final double normalTotal = total + discount;
 
     pdf.addPage(
       pw.Page(
@@ -54,20 +65,45 @@ class PdfService {
 
               // Items Table
               pw.TableHelper.fromTextArray(
-                headers: ['#', 'Item', 'Qty', 'Unit Price (Rs.)', 'SubTotal (Rs.)'],
+                headers: [
+                  '#',
+                  'Item',
+                  'Qty',
+                  'Normal Price (Rs.)',
+                  'Our Price (Rs.)',
+                  'SubTotal (Rs.)'
+                ],
                 data: List.generate(items.length, (index) {
                   final item = items[index];
+                  final unit = (item['UnitPrice'] as num).toDouble();
+                  // Old invoices have no NormalPrice -> fall back to unit price
+                  final normal = (item['NormalPrice'] as num?)?.toDouble() ?? unit;
                   return [
                     (index + 1).toString(),
                     item['ProductName'] ?? 'Product',
-                    item['Quantity'].toString(),
-                    (item['UnitPrice'] as num).toStringAsFixed(2),
+                    _fmtQty(item['Quantity']),
+                    normal.toStringAsFixed(2),
+                    unit.toStringAsFixed(2),
                     (item['SubTotal'] as num).toStringAsFixed(2),
                   ];
                 }),
                 headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
                 headerDecoration: const pw.BoxDecoration(color: PdfColors.blue),
                 cellAlignment: pw.Alignment.centerLeft,
+                columnWidths: {
+                  0: const pw.FixedColumnWidth(28), // #
+                  1: const pw.FlexColumnWidth(4), // Item
+                  2: const pw.FixedColumnWidth(40), // Qty
+                  3: const pw.FlexColumnWidth(2), // Normal Price
+                  4: const pw.FlexColumnWidth(2), // Our Price
+                  5: const pw.FlexColumnWidth(2), // SubTotal
+                },
+                cellAlignments: {
+                  2: pw.Alignment.centerRight,
+                  3: pw.Alignment.centerRight,
+                  4: pw.Alignment.centerRight,
+                  5: pw.Alignment.centerRight,
+                },
               ),
               pw.SizedBox(height: 15),
 
@@ -78,11 +114,12 @@ class PdfService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
+                      pw.Text('Normal Total: Rs. ${normalTotal.toStringAsFixed(2)}'),
+                      pw.Text('Discount: Rs. ${discount.toStringAsFixed(2)}'),
                       pw.Text(
-                        'Total Amount: Rs. ${(sale['TotalAmount'] as num).toStringAsFixed(2)}',
+                        'Total Amount: Rs. ${total.toStringAsFixed(2)}',
                         style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
                       ),
-                      pw.Text('Discount: Rs. ${(sale['TotalDiscount'] as num).toStringAsFixed(2)}'),
                       pw.Text('Cash Paid: Rs. ${(sale['CashReceived'] as num).toStringAsFixed(2)}'),
                       pw.Text('Balance: Rs. ${(sale['Balance'] as num).toStringAsFixed(2)}'),
                     ],
