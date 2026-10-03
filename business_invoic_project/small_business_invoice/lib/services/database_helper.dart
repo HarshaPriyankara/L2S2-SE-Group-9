@@ -180,19 +180,25 @@ class DatabaseHelper {
     // Default Category
     await db.rawInsert('''
       INSERT OR IGNORE INTO Categories (CategoryID, CategoryName) 
-      VALUES (1, 'General Category')
+      VALUES (1, 'Default Category')
     ''');
 
     // Default Supplier
     await db.rawInsert('''
       INSERT OR IGNORE INTO Suppliers (SupplierID, SupplierName, SupplierCompany, ContactNumber) 
-      VALUES (1, 'General Supplier', 'General', '')
+      VALUES (1, 'Default Supplier', 'Default Company', '')
     ''');
 
     // Default Customer
     await db.rawInsert('''
       INSERT OR IGNORE INTO Customers (CustomerID, CustomerName, ContactNumber) 
-      VALUES (1, 'Cash Customer', '')
+      VALUES (1, 'Default Customer', '')
+    ''');
+
+    // Default Expense Category
+    await db.rawInsert('''
+      INSERT OR IGNORE INTO ExpenseCategories (ExCatID, ExCatName) 
+      VALUES (1, 'Default Expense')
     ''');
   }
 
