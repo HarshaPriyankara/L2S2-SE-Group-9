@@ -499,4 +499,62 @@ class DatabaseHelper {
       'store': store.isNotEmpty ? store.first : {'StoreName': 'EasyBill POS'},
     };
   }
+
+  // -----------------------------------------------------------------------------------
+  // Expense Category CRUD Operations
+  Future<List<Map<String, dynamic>>> getExpenseCategories() async {
+    final db = await instance.database;
+    return await db.query('ExpenseCategories', orderBy: 'ExCatName ASC');
+  }
+
+  Future<int> insertExpenseCategory(String name) async {
+    final db = await instance.database;
+    return await db.insert('ExpenseCategories', {'ExCatName': name});
+  }
+
+  Future<int> deleteExpenseCategory(int id) async {
+    if (id == 1) return 0; // Default category protect
+    final db = await instance.database;
+    return await db.delete('ExpenseCategories', where: 'ExCatID = ?', whereArgs: [id]);
+  }
+
+  // -----------------------------------------------------------------------------------
+  // Expense CRUD Operations
+  Future<List<Map<String, dynamic>>> getExpenses() async {
+    final db = await instance.database;
+    return await db.rawQuery('''
+      SELECT E.*, EC.ExCatName, S.SupplierName
+      FROM Expenses E
+      LEFT JOIN ExpenseCategories EC ON E.ExCatID = EC.ExCatID
+      LEFT JOIN Suppliers S ON E.SupplierID = S.SupplierID
+      ORDER BY E.ExID DESC
+    ''');
+  }
+
+  Future<int> insertExpense(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('Expenses', row);
+  }
+
+  Future<int> updateExpense(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.update(
+      'Expenses',
+      {
+        'Amount': row['Amount'],
+        'PaymentType': row['PaymentType'],
+        'Notes': row['Notes'],
+        'SupplierID': row['SupplierID'],
+        'ExCatID': row['ExCatID'],
+        'UpdatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'ExID = ?',
+      whereArgs: [row['ExID']],
+    );
+  }
+
+  Future<int> deleteExpense(int id) async {
+    final db = await instance.database;
+    return await db.delete('Expenses', where: 'ExID = ?', whereArgs: [id]);
+  }
 }
