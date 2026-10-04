@@ -19,8 +19,8 @@ void main() async {
     await windowManager.ensureInitialized();
 
     WindowOptions windowOptions = const WindowOptions(
-      size: Size(450, 600),
-      minimumSize: Size(400, 550),
+      size: Size(1000, 640), // login window size (centered)
+      minimumSize: Size(800, 600),
       center: true,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,

@@ -13,165 +13,308 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  
+
   bool _isPasswordVisible = false;
   bool _isLoading = false;
 
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   void _handleLogin() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+    if (_isLoading) return;
+    if (!_formKey.currentState!.validate()) return;
 
-      final username = _usernameController.text.trim();
-      final password = _passwordController.text.trim();
+    setState(() => _isLoading = true);
 
-      final user = await DatabaseHelper.instance.loginUser(username, password);
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
 
-      setState(() => _isLoading = false);
+    final user = await DatabaseHelper.instance.loginUser(username, password);
 
-      if (user != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Welcome, ${user['FullName']}!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
-        );
-      } else if (mounted) {
-        // Login අසාර්ථකයි නම්
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Username or Password is incorrect!'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    if (user != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Welcome, ${user['FullName']}!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardScreen()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Username or Password is incorrect!'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
-  @override
-Widget build(BuildContext context) {
-  return Scaffold(
-    backgroundColor: Colors.grey[100], //[cite: 3]
-    body: Center( //[cite: 3]
-      child: SingleChildScrollView( //[cite: 3]
-        padding: const EdgeInsets.all(16.0),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 380), // Window එකට හරියන ප්‍රමාණය[cite: 3]
-          child: Card( //[cite: 3]
-            elevation: 3,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16), //[cite: 3]
-            ),
+  // ---------------- Left branding panel ----------------
+
+  Widget _buildBrandPanel() {
+    final cs = Theme.of(context).colorScheme;
+    final Color top = cs.primary;
+    final Color bottom = Color.lerp(cs.primary, Colors.black, 0.35)!;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [top, bottom],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Center(
             child: Padding(
-              padding: const EdgeInsets.all(24.0), //[cite: 3]
-              child: Form( //[cite: 3]
-                key: _formKey, //[cite: 3]
-                child: Column( //[cite: 3]
-                  mainAxisSize: MainAxisSize.min, //[cite: 3]
-                  children: [
-                    const Icon(
-                      Icons.point_of_sale, //[cite: 3]
-                      size: 56,
-                      color: Colors.blue, //[cite: 3]
+              padding: const EdgeInsets.symmetric(horizontal: 48),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 84,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.35)),
                     ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'EasyBill POS', //[cite: 3]
+                    child: const Icon(Icons.point_of_sale,
+                        size: 46, color: Colors.white),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'EasyBill POS',
+                    style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Invoice & Expense Management System',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 340),
+                    child: Text(
+                      'A simple, easy-to-use application for managing your '
+                      'invoices, customers, inventory and expenses.',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold, //[cite: 3]
+                        fontSize: 15,
+                        height: 1.5,
+                        color: Colors.white.withValues(alpha: 0.85),
                       ),
                     ),
-                    const Text(
-                      'Sign in to continue', //[cite: 3]
-                      style: TextStyle(color: Colors.grey), //[cite: 3]
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 24,
+            bottom: 18,
+            child: Text(
+              'Version 1.0',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------- Right form panel ----------------
+
+  Widget _fieldLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+          color: Colors.grey.shade600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormPanel({required bool showBrandInline}) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      color: Colors.white,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Shown only when the left panel is hidden (narrow window)
+                  if (showBrandInline) ...[
+                    Center(
+                      child: Icon(Icons.point_of_sale,
+                          size: 56, color: cs.primary),
                     ),
                     const SizedBox(height: 24),
-
-                    // Username Input
-                    TextFormField( //[cite: 3]
-                      controller: _usernameController, //[cite: 3]
-                      decoration: InputDecoration(
-                        labelText: 'Username', //[cite: 3]
-                        prefixIcon: const Icon(Icons.person), //[cite: 3]
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12), //[cite: 3]
-                        ),
-                      ),
-                      validator: (value) { //[cite: 3]
-                        if (value == null || value.isEmpty) { //[cite: 3]
-                          return 'Please enter your username'; //[cite: 3]
-                        }
-                        return null; //[cite: 3]
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Password Input
-                    TextFormField( //[cite: 3]
-                      controller: _passwordController, //[cite: 3]
-                      obscureText: !_isPasswordVisible, //[cite: 3]
-                      decoration: InputDecoration(
-                        labelText: 'Password', //[cite: 3]
-                        prefixIcon: const Icon(Icons.lock), //[cite: 3]
-                        suffixIcon: IconButton( //[cite: 3]
-                          icon: Icon(
-                            _isPasswordVisible
-                                ? Icons.visibility
-                                : Icons.visibility_off, //[cite: 3]
-                          ),
-                          onPressed: () { //[cite: 3]
-                            setState(() {
-                              _isPasswordVisible = !_isPasswordVisible; //[cite: 3]
-                            });
-                          },
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12), //[cite: 3]
-                        ),
-                      ),
-                      validator: (value) { //[cite: 3]
-                        if (value == null || value.isEmpty) { //[cite: 3]
-                          return 'Please enter your password'; //[cite: 3]
-                        }
-                        return null; //[cite: 3]
-                      },
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Login Button
-                    SizedBox( //[cite: 3]
-                      width: double.infinity, //[cite: 3]
-                      height: 48, //[cite: 3]
-                      child: ElevatedButton( //[cite: 3]
-                        onPressed: _isLoading ? null : _handleLogin, //[cite: 3]
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue, //[cite: 3]
-                          foregroundColor: Colors.white, //[cite: 3]
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12), //[cite: 3]
-                          ),
-                        ),
-                        child: _isLoading //[cite: 3]
-                            ? const CircularProgressIndicator(color: Colors.white) //[cite: 3]
-                            : const Text(
-                                'Login', //[cite: 3]
-                                style: TextStyle(fontSize: 16), //[cite: 3]
-                              ),
-                      ),
-                    ),
                   ],
-                ),
+                  const Text(
+                    'Log into EasyBill',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Enter your login details below',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Username
+                  _fieldLabel('USERNAME'),
+                  TextFormField(
+                    controller: _usernameController,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      hintText: 'Enter your username',
+                      prefixIcon: const Icon(Icons.person),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your username';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Password
+                  _fieldLabel('PASSWORD'),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: !_isPasswordVisible,
+                    onFieldSubmitted: (_) => _handleLogin(),
+                    decoration: InputDecoration(
+                      hintText: 'Enter your password',
+                      prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your password';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Sign in button
+                  SizedBox(
+                    width: 160,
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: _isLoading ? null : _handleLogin,
+                      style: FilledButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'SIGN IN',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1),
+                            ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Wide window -> split layout, narrow window -> form only
+          final bool wide = constraints.maxWidth >= 800;
+
+          if (!wide) {
+            return _buildFormPanel(showBrandInline: true);
+          }
+
+          return Row(
+            children: [
+              Expanded(flex: 5, child: _buildBrandPanel()),
+              Expanded(flex: 6, child: _buildFormPanel(showBrandInline: false)),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }

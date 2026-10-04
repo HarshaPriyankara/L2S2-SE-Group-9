@@ -55,10 +55,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _handleLogout() async {
+    // Back to the smaller, centered login window
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       await windowManager.unmaximize();
-      await windowManager.setSize(const Size(450, 600));
-      await windowManager.setMinimumSize(const Size(400, 550));
+      await windowManager.setSize(const Size(1000, 640));
+      await windowManager.setMinimumSize(const Size(800, 600));
       await windowManager.center();
     }
 
