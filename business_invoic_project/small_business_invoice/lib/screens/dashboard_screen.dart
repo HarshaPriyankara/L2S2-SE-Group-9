@@ -175,7 +175,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ),
-              const Divider(height: 1),
               const SizedBox(height: 8),
 
               // Menu items
@@ -308,17 +307,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Page title shown at the top of every page
   Widget _buildPageHeader() {
-    final cs = Theme.of(context).colorScheme;
     final item = _navItems[_selectedIndex];
 
     return Container(
       width: double.infinity,
-      height: 65, // 64 + 1px border = same as sidebar header (64) + divider (1)
+      height: 64, // same height as the sidebar header
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
-      ),
       child: Row(
         children: [
           Text(

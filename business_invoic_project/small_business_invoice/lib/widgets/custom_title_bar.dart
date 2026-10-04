@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
+/// Title bar height (shared so other widgets can match it)
+const double kTitleBarHeight = 44;
+
 /// Custom window title bar (replaces the default OS title bar).
 /// Drag to move, double-click to maximize/restore.
 class CustomTitleBar extends StatefulWidget {
@@ -56,7 +59,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
     return Material(
       color: cs.surface,
       child: Container(
-        height: 32,
+        height: kTitleBarHeight,
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: cs.outlineVariant)),
         ),
@@ -70,13 +73,13 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
                   onDoubleTap: _toggleMaximize,
                   child: Row(
                     children: [
-                      const SizedBox(width: 12),
-                      Icon(Icons.point_of_sale, size: 16, color: cs.primary),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 16),
+                      Icon(Icons.point_of_sale, size: 22, color: cs.primary),
+                      const SizedBox(width: 10),
                       Text(
                         'EasyBill POS',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: cs.onSurface,
                         ),
@@ -94,7 +97,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
             ),
             _TitleButton(
               icon: _isMaximized ? Icons.filter_none : Icons.crop_square,
-              iconSize: _isMaximized ? 14 : 16,
+              iconSize: _isMaximized ? 16 : 18,
               onTap: _toggleMaximize,
             ),
             _TitleButton(
@@ -119,7 +122,7 @@ class _TitleButton extends StatefulWidget {
     required this.icon,
     required this.onTap,
     this.isClose = false,
-    this.iconSize = 16,
+    this.iconSize = 18,
   });
 
   @override
@@ -147,8 +150,8 @@ class _TitleButtonState extends State<_TitleButton> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: Container(
-          width: 46,
-          height: 32,
+          width: 58,
+          height: kTitleBarHeight,
           color: bg,
           alignment: Alignment.center,
           child: Icon(widget.icon, size: widget.iconSize, color: fg),
