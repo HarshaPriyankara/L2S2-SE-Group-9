@@ -10,16 +10,21 @@ import 'expense_screen.dart';
 import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  /// 'Admin' or 'Cashier' (comes from the logged-in user's UserRole)
+  final String userRole;
+
+  const DashboardScreen({super.key, this.userRole = 'Cashier'});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _NavItem {
+  final String key;
   final IconData icon;
   final String label;
-  const _NavItem(this.icon, this.label);
+  final bool adminOnly; // hidden for Cashier
+  const _NavItem(this.key, this.icon, this.label, {this.adminOnly = false});
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
@@ -31,20 +36,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const double _collapsedWidth = 72;
   static const double _expandedWidth = 220;
 
-  static const List<_NavItem> _navItems = [
-    _NavItem(Icons.dashboard, 'Dashboard'),
-    _NavItem(Icons.inventory, 'Inventory'),
-    _NavItem(Icons.people, 'Customers'),
-    _NavItem(Icons.local_shipping, 'Suppliers'),
-    _NavItem(Icons.receipt_long, 'Invoices'),
-    _NavItem(Icons.money_off, 'Expenses'),
-    _NavItem(Icons.manage_accounts, 'Users'),
+  static const List<_NavItem> _allItems = [
+    _NavItem('dashboard', Icons.dashboard, 'Dashboard', adminOnly: true),
+    _NavItem('inventory', Icons.inventory, 'Inventory'),
+    _NavItem('customers', Icons.people, 'Customers'),
+    _NavItem('suppliers', Icons.local_shipping, 'Suppliers'),
+    _NavItem('invoices', Icons.receipt_long, 'Invoices'),
+    _NavItem('expenses', Icons.money_off, 'Expenses'),
+    _NavItem('users', Icons.manage_accounts, 'Users', adminOnly: true),
   ];
+
+  bool get _isAdmin => widget.userRole.trim().toLowerCase() == 'admin';
+
+  // Menu items this user is allowed to see
+  late final List<_NavItem> _navItems =
+      _allItems.where((item) => _isAdmin || !item.adminOnly).toList();
 
   @override
   void initState() {
     super.initState();
+    // Admin starts on the Dashboard, Cashier starts on Invoices (new sale)
+    final start = _isAdmin ? 'dashboard' : 'invoices';
+    _selectedIndex = _navItems.indexWhere((item) => item.key == start);
+    if (_selectedIndex < 0) _selectedIndex = 0;
     _maximizeWindow();
+  }
+
+  // Jump to a page by key (ignored if this user has no access to it)
+  void _goTo(String key, {bool openExpenseForm = false}) {
+    final index = _navItems.indexWhere((item) => item.key == key);
+    if (index < 0) return;
+    setState(() {
+      _selectedIndex = index;
+      _openExpenseForm = openExpenseForm;
+    });
   }
 
   void _maximizeWindow() async {
@@ -217,97 +242,147 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ---------------- Dashboard overview ----------------
 
   Widget _buildDashboardOverview() {
+    const overviewText = Text(
+      'Overview of your business finances',
+      style: TextStyle(fontSize: 16),
+    );
+
+    // Financial summary cards
+    final cards = Wrap(
+      spacing: 15,
+      runSpacing: 15,
+      children: [
+        _summaryCard('Total Income', 'Rs. 0.00', Icons.trending_up),
+        _summaryCard('Total Expenses', 'Rs. 0.00', Icons.money_off),
+        _summaryCard('Net Profit', 'Rs. 0.00', Icons.account_balance_wallet),
+        _summaryCard('Outstanding', 'Rs. 0.00', Icons.pending_actions),
+      ],
+    );
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Overview of your business finances',
-            style: TextStyle(fontSize: 16),
-          ),
-          const SizedBox(height: 25),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Wide window: Quick Actions sit on the right, starting on the
+          // same line as the "Overview..." text.
+          // Narrow window: Quick Actions go below the cards.
+          final bool sideBySide = constraints.maxWidth >= 1300;
 
-          // Financial summary cards
-          Wrap(
-            spacing: 15,
-            runSpacing: 15,
-            children: [
-              _summaryCard('Total Income', 'Rs. 0.00', Icons.trending_up),
-              _summaryCard('Total Expenses', 'Rs. 0.00', Icons.money_off),
-              _summaryCard(
-                  'Net Profit', 'Rs. 0.00', Icons.account_balance_wallet),
-              _summaryCard('Outstanding', 'Rs. 0.00', Icons.pending_actions),
-            ],
-          ),
-          const SizedBox(height: 35),
-          const Text(
-            'Quick Actions',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 15),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  // Invoices page opens on the "New Sale" form
-                  onPressed: () => setState(() {
-                    _selectedIndex = 4;
-                    _openExpenseForm = false;
-                  }),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 52),
-                  ),
-                  icon: const Icon(Icons.add, size: 22),
-                  label: const Text(
-                    'Create Invoice',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          if (sideBySide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(
+                        height: 30,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: overviewText,
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      cards,
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  // Opens Expenses page + the "Add New Expense" form
-                  onPressed: () => setState(() {
-                    _selectedIndex = 5;
-                    _openExpenseForm = true;
-                  }),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 52),
-                  ),
-                  icon: const Icon(Icons.add, size: 22),
-                  label: const Text(
-                    'Add Expense',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
+                const SizedBox(width: 32),
+                SizedBox(
+                  width: 340,
+                  child: _buildQuickActions(vertical: true),
                 ),
-              ),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              overviewText,
+              const SizedBox(height: 25),
+              cards,
+              const SizedBox(height: 35),
+              _buildQuickActions(vertical: false),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
+  Widget _buildQuickActions({required bool vertical}) {
+    final createInvoice = FilledButton.icon(
+      // Invoices page opens on the "New Sale" form
+      onPressed: () => _goTo('invoices'),
+      style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+      icon: const Icon(Icons.add, size: 22),
+      label: const Text(
+        'Create Invoice',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      ),
+    );
+
+    final addExpense = OutlinedButton.icon(
+      // Opens Expenses page + the "Add New Expense" form
+      onPressed: () => _goTo('expenses', openExpenseForm: true),
+      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+      icon: const Icon(Icons.add, size: 22),
+      label: const Text(
+        'Add Expense',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(
+          height: 30,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Quick Actions',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        const SizedBox(height: 15),
+        if (vertical) ...[
+          SizedBox(width: double.infinity, child: createInvoice),
+          const SizedBox(height: 12),
+          SizedBox(width: double.infinity, child: addExpense),
+        ] else
+          Row(
+            children: [
+              Expanded(child: createInvoice),
+              const SizedBox(width: 12),
+              Expanded(child: addExpense),
+            ],
+          ),
+      ],
+    );
+  }
+
   Widget _getSelectedScreen() {
-    switch (_selectedIndex) {
-      case 0:
+    switch (_navItems[_selectedIndex].key) {
+      case 'dashboard':
         return _buildDashboardOverview();
-      case 1:
+      case 'inventory':
         return const InventoryScreen();
-      case 2:
+      case 'customers':
         return const CustomerScreen();
-      case 3:
+      case 'suppliers':
         return const SupplierScreen();
-      case 4:
+      case 'invoices':
         return const InvoiceScreen();
-      case 5:
+      case 'expenses':
         return ExpenseScreen(openAddOnStart: _openExpenseForm);
-      case 6:
+      case 'users':
         return const UserScreen();
       default:
-        return _buildDashboardOverview();
+        return const InvoiceScreen();
     }
   }
 
