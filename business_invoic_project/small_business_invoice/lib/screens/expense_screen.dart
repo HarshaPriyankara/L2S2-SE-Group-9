@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 
 class ExpenseScreen extends StatefulWidget {
-  const ExpenseScreen({super.key});
+  /// true -> open the "Add New Expense" dialog as soon as the screen loads
+  final bool openAddOnStart;
+
+  const ExpenseScreen({super.key, this.openAddOnStart = false});
 
   @override
   State<ExpenseScreen> createState() => _ExpenseScreenState();
@@ -31,7 +34,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   @override
   void initState() {
     super.initState();
-    _refreshExpenses();
+    _refreshExpenses().then((_) {
+      // Dashboard "Add Expense" quick action -> open the form straight away
+      if (widget.openAddOnStart && mounted) _showExpenseDialog();
+    });
   }
 
   @override

@@ -24,6 +24,7 @@ class _NavItem {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
+  bool _openExpenseForm = false; // set by the "Add Expense" quick action
 
   // Sidebar: default = collapsed (icons only)
   bool _isExpanded = false;
@@ -187,7 +188,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         icon: _navItems[i].icon,
                         label: _navItems[i].label,
                         selected: _selectedIndex == i,
-                        onTap: () => setState(() => _selectedIndex = i),
+                        onTap: () => setState(() {
+                          _selectedIndex = i;
+                          _openExpenseForm = false;
+                        }),
                       ),
                   ],
                 ),
@@ -245,17 +249,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () => setState(() => _selectedIndex = 4),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Create Invoice'),
+                  // Invoices page opens on the "New Sale" form
+                  onPressed: () => setState(() {
+                    _selectedIndex = 4;
+                    _openExpenseForm = false;
+                  }),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 52),
+                  ),
+                  icon: const Icon(Icons.add, size: 22),
+                  label: const Text(
+                    'Create Invoice',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => setState(() => _selectedIndex = 5),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Expense'),
+                  // Opens Expenses page + the "Add New Expense" form
+                  onPressed: () => setState(() {
+                    _selectedIndex = 5;
+                    _openExpenseForm = true;
+                  }),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 52),
+                  ),
+                  icon: const Icon(Icons.add, size: 22),
+                  label: const Text(
+                    'Add Expense',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -278,7 +302,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 4:
         return const InvoiceScreen();
       case 5:
-        return const ExpenseScreen();
+        return ExpenseScreen(openAddOnStart: _openExpenseForm);
       case 6:
         return const UserScreen();
       default:
