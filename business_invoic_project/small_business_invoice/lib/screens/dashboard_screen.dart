@@ -16,8 +16,29 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
+class _NavItem {
+  final IconData icon;
+  final String label;
+  const _NavItem(this.icon, this.label);
+}
+
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
+
+  // Sidebar: default = collapsed (icons only)
+  bool _isExpanded = false;
+  static const double _collapsedWidth = 72;
+  static const double _expandedWidth = 220;
+
+  static const List<_NavItem> _navItems = [
+    _NavItem(Icons.dashboard, 'Dashboard'),
+    _NavItem(Icons.inventory, 'Inventory'),
+    _NavItem(Icons.people, 'Customers'),
+    _NavItem(Icons.local_shipping, 'Suppliers'),
+    _NavItem(Icons.receipt_long, 'Invoices'),
+    _NavItem(Icons.money_off, 'Expenses'),
+    _NavItem(Icons.manage_accounts, 'Users'),
+  ];
 
   @override
   void initState() {
@@ -48,17 +69,155 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _toggleSidebar() => setState(() => _isExpanded = !_isExpanded);
+
+  // ---------------- Sidebar ----------------
+
+  Widget _sidebarTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool selected = false,
+    Color? color,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final Color fg = color ?? (selected ? cs.primary : cs.onSurfaceVariant);
+
+    return Tooltip(
+      message: _isExpanded ? '' : label,
+      waitDuration: const Duration(milliseconds: 400),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Material(
+          color: selected ? cs.primaryContainer : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: SizedBox(
+              height: 48,
+              child: Row(
+                children: [
+                  // (72 - 16 padding - 24 icon) / 2 = 16 -> icon stays centered when collapsed
+                  const SizedBox(width: 16),
+                  Icon(icon, color: fg),
+                  const SizedBox(width: 16),
+                  if (_isExpanded)
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.clip,
+                        softWrap: false,
+                        style: TextStyle(
+                          color: fg,
+                          fontWeight:
+                              selected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebar() {
+    final cs = Theme.of(context).colorScheme;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      width: _isExpanded ? _expandedWidth : _collapsedWidth,
+      clipBehavior: Clip.hardEdge,
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(right: BorderSide(color: cs.outlineVariant)),
+      ),
+      child: OverflowBox(
+        alignment: Alignment.centerLeft,
+        minWidth: 0,
+        maxWidth: _expandedWidth,
+        child: SizedBox(
+          width: _expandedWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header - click to toggle
+              InkWell(
+                onTap: _toggleSidebar,
+                child: SizedBox(
+                  height: 64,
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 24),
+                      Icon(
+                        _isExpanded ? Icons.menu_open : Icons.menu,
+                        color: cs.primary,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 16),
+                      if (_isExpanded)
+                        const Expanded(
+                          child: Text(
+                            'EasyBill',
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.clip,
+                            style: TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+
+              // Menu items
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    for (int i = 0; i < _navItems.length; i++)
+                      _sidebarTile(
+                        icon: _navItems[i].icon,
+                        label: _navItems[i].label,
+                        selected: _selectedIndex == i,
+                        onTap: () => setState(() => _selectedIndex = i),
+                      ),
+                  ],
+                ),
+              ),
+
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+              _sidebarTile(
+                icon: Icons.logout,
+                label: 'Logout',
+                color: Colors.red,
+                onTap: _handleLogout,
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------------- Dashboard overview ----------------
+
   Widget _buildDashboardOverview() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Financial Dashboard',
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
           const Text(
             'Overview of your business finances',
             style: TextStyle(fontSize: 16),
@@ -72,7 +231,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               _summaryCard('Total Income', 'Rs. 0.00', Icons.trending_up),
               _summaryCard('Total Expenses', 'Rs. 0.00', Icons.money_off),
-              _summaryCard('Net Profit', 'Rs. 0.00', Icons.account_balance_wallet),
+              _summaryCard(
+                  'Net Profit', 'Rs. 0.00', Icons.account_balance_wallet),
               _summaryCard('Outstanding', 'Rs. 0.00', Icons.pending_actions),
             ],
           ),
@@ -86,7 +246,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () {},
+                  onPressed: () => setState(() => _selectedIndex = 4),
                   icon: const Icon(Icons.add),
                   label: const Text('Create Invoice'),
                 ),
@@ -94,7 +254,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: () => setState(() => _selectedIndex = 5),
                   icon: const Icon(Icons.add),
                   label: const Text('Add Expense'),
                 ),
@@ -130,110 +290,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Small Business Management'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: _handleLogout,
+      body: Row(
+        children: [
+          _buildSidebar(),
+          Expanded(
+            child: Column(
+              children: [
+                _buildPageHeader(),
+                Expanded(child: _getSelectedScreen()),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
 
-      // Side Navigation Menu (Drawer)
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.business, size: 45),
-                  SizedBox(height: 10),
-                  Text('EasyBill', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                  Text('Invoice & Expense Management'),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.dashboard),
-              title: const Text('Dashboard'),
-              selected: _selectedIndex == 0,
-              onTap: () {
-                setState(() => _selectedIndex = 0);
-                Navigator.pop(context); 
-              },
-            ),
+  // Page title shown at the top of every page
+  Widget _buildPageHeader() {
+    final cs = Theme.of(context).colorScheme;
+    final item = _navItems[_selectedIndex];
 
-            ListTile(
-              leading: const Icon(Icons.inventory),
-              title: const Text('Inventory'),
-              selected: _selectedIndex == 1,
-              onTap: () {
-                setState(() => _selectedIndex = 1);
-                Navigator.pop(context);
-              },
-            ),
-
-            ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text('Customers'),
-              selected: _selectedIndex == 2,
-              onTap: () {
-                setState(() => _selectedIndex = 2);
-                Navigator.pop(context); 
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.local_shipping),
-              title: const Text('Suppliers'),
-              selected: _selectedIndex == 3,
-              onTap: () {
-                setState(() => _selectedIndex = 3);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.receipt_long),
-              title: const Text('Invoices'),
-              selected: _selectedIndex == 4,
-              onTap: () {
-                setState(() => _selectedIndex = 4);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.money_off),
-              title: const Text('Expenses'),
-              selected: _selectedIndex == 5,
-              onTap: () {
-                setState(() => _selectedIndex = 5);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.manage_accounts),
-              title: const Text('Users'),
-              selected: _selectedIndex == 6,
-              onTap: () {
-                setState(() => _selectedIndex = 6);
-                Navigator.pop(context);
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text('Logout', style: TextStyle(color: Colors.red)),
-              onTap: _handleLogout,
-            ),
-          ],
-        ),
+    return Container(
+      width: double.infinity,
+      height: 65, // 64 + 1px border = same as sidebar header (64) + divider (1)
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
       ),
-
-      // Dynamic Body Content
-      body: _getSelectedScreen(),
+      child: Row(
+        children: [
+          Text(
+            item.label,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
     );
   }
 
@@ -250,7 +343,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 15),
               Text(title, style: const TextStyle(fontSize: 16)),
               const SizedBox(height: 5),
-              Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.bold)),
             ],
           ),
         ),

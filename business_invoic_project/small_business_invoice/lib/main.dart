@@ -1,27 +1,31 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:window_manager/window_manager.dart'; 
+import 'package:window_manager/window_manager.dart';
 import 'screens/login_screen.dart';
 import 'services/database_helper.dart';
+import 'widgets/custom_title_bar.dart';
+
+bool get _isDesktop =>
+    Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+  if (_isDesktop) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
 
     await windowManager.ensureInitialized();
 
     WindowOptions windowOptions = const WindowOptions(
-      size: Size(450, 600),             
-      minimumSize: Size(400, 550),      
-      center: true,                      
+      size: Size(450, 600),
+      minimumSize: Size(400, 550),
+      center: true,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.normal,
-      title: 'EasyBill POS - Login',
+      titleBarStyle: TitleBarStyle.hidden, // hide the default title bar
+      title: 'EasyBill POS',
     );
 
     windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -47,6 +51,16 @@ class InvoiceExpenseApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: Colors.blue,
       ),
+      // Custom title bar on top of every screen (desktop only)
+      builder: (context, child) {
+        if (!_isDesktop) return child ?? const SizedBox.shrink();
+        return Column(
+          children: [
+            const CustomTitleBar(),
+            Expanded(child: child ?? const SizedBox.shrink()),
+          ],
+        );
+      },
       home: const LoginScreen(),
     );
   }
