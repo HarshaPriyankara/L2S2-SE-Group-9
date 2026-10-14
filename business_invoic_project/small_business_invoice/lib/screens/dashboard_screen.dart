@@ -8,6 +8,7 @@ import 'inventory_screen.dart';
 import 'invoice_screen.dart';
 import 'expense_screen.dart';
 import 'login_screen.dart';
+import 'dashboard_overview.dart';
 
 class DashboardScreen extends StatefulWidget {
   /// 'Admin' or 'Cashier' (comes from the logged-in user's UserRole)
@@ -239,136 +240,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ---------------- Dashboard overview ----------------
-
-  Widget _buildDashboardOverview() {
-    const overviewText = Text(
-      'Overview of your business finances',
-      style: TextStyle(fontSize: 16),
-    );
-
-    // Financial summary cards
-    final cards = Wrap(
-      spacing: 15,
-      runSpacing: 15,
-      children: [
-        _summaryCard('Total Income', 'Rs. 0.00', Icons.trending_up),
-        _summaryCard('Total Expenses', 'Rs. 0.00', Icons.money_off),
-        _summaryCard('Net Profit', 'Rs. 0.00', Icons.account_balance_wallet),
-        _summaryCard('Outstanding', 'Rs. 0.00', Icons.pending_actions),
-      ],
-    );
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Wide window: Quick Actions sit on the right, starting on the
-          // same line as the "Overview..." text.
-          // Narrow window: Quick Actions go below the cards.
-          final bool sideBySide = constraints.maxWidth >= 1300;
-
-          if (sideBySide) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(
-                        height: 30,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: overviewText,
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      cards,
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 32),
-                SizedBox(
-                  width: 340,
-                  child: _buildQuickActions(vertical: true),
-                ),
-              ],
-            );
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              overviewText,
-              const SizedBox(height: 25),
-              cards,
-              const SizedBox(height: 35),
-              _buildQuickActions(vertical: false),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildQuickActions({required bool vertical}) {
-    final createInvoice = FilledButton.icon(
-      // Invoices page opens on the "New Sale" form
-      onPressed: () => _goTo('invoices'),
-      style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
-      icon: const Icon(Icons.add, size: 22),
-      label: const Text(
-        'Create Invoice',
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
-    );
-
-    final addExpense = OutlinedButton.icon(
-      // Opens Expenses page + the "Add New Expense" form
-      onPressed: () => _goTo('expenses', openExpenseForm: true),
-      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
-      icon: const Icon(Icons.add, size: 22),
-      label: const Text(
-        'Add Expense',
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(
-          height: 30,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Quick Actions',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-        const SizedBox(height: 15),
-        if (vertical) ...[
-          SizedBox(width: double.infinity, child: createInvoice),
-          const SizedBox(height: 12),
-          SizedBox(width: double.infinity, child: addExpense),
-        ] else
-          Row(
-            children: [
-              Expanded(child: createInvoice),
-              const SizedBox(width: 12),
-              Expanded(child: addExpense),
-            ],
-          ),
-      ],
-    );
-  }
-
   Widget _getSelectedScreen() {
     switch (_navItems[_selectedIndex].key) {
       case 'dashboard':
-        return _buildDashboardOverview();
+        return DashboardOverview(
+          onCreateInvoice: () => _goTo('invoices'),
+          onAddExpense: () => _goTo('expenses', openExpenseForm: true),
+        );
       case 'inventory':
         return const InventoryScreen();
       case 'customers':
@@ -420,29 +298,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _summaryCard(String title, String value, IconData icon) {
-    return SizedBox(
-      width: 220,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 32),
-              const SizedBox(height: 15),
-              Text(title, style: const TextStyle(fontSize: 16)),
-              const SizedBox(height: 5),
-              Text(value,
-                  style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
       ),
     );
   }

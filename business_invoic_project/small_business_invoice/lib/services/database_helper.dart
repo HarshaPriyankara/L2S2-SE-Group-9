@@ -557,4 +557,77 @@ class DatabaseHelper {
     final db = await instance.database;
     return await db.delete('Expenses', where: 'ExID = ?', whereArgs: [id]);
   }
+
+  // -----------------------------------------------------------------------------------
+  // Dashboard Operations
+  // start / end = 'yyyy-MM-dd' (inclusive). Both null = all time.
+  // Voided invoices are ignored. BillDate is stored in UTC, so convert to local time.
+
+  // 1. Income per day  ->  {'2026-10-14': 12500.0, ...}
+  Future<Map<String, double>> getDailyIncome({String? start, String? end}) async {
+    final db = await instance.database;
+    final args = <Object>[];
+    var where = 'IFNULL(IsVoided, 0) = 0';
+    if (start != null && end != null) {
+      where += " AND date(BillDate, 'localtime') BETWEEN ? AND ?";
+      args.addAll([start, end]);
+    }
+
+    final rows = await db.rawQuery('''
+      SELECT date(BillDate, 'localtime') AS Day, SUM(TotalAmount) AS Total
+      FROM Sales
+      WHERE $where
+      GROUP BY Day
+    ''', args);
+
+    return {
+      for (final r in rows)
+        if (r['Day'] != null)
+          r['Day'] as String: (r['Total'] as num?)?.toDouble() ?? 0.0,
+    };
+  }
+
+  // 2. Expenses per day
+  Future<Map<String, double>> getDailyExpenses({String? start, String? end}) async {
+    final db = await instance.database;
+    final args = <Object>[];
+    var where = 'ExpenseDate IS NOT NULL';
+    if (start != null && end != null) {
+      where += ' AND substr(ExpenseDate, 1, 10) BETWEEN ? AND ?';
+      args.addAll([start, end]);
+    }
+
+    final rows = await db.rawQuery('''
+      SELECT substr(ExpenseDate, 1, 10) AS Day, SUM(Amount) AS Total
+      FROM Expenses
+      WHERE $where
+      GROUP BY Day
+    ''', args);
+
+    return {
+      for (final r in rows)
+        if (r['Day'] != null)
+          r['Day'] as String: (r['Total'] as num?)?.toDouble() ?? 0.0,
+    };
+  }
+
+  // 3. Outstanding = invoice total that is not yet paid (TotalAmount - CashReceived)
+  Future<double> getOutstandingAmount({String? start, String? end}) async {
+    final db = await instance.database;
+    final args = <Object>[];
+    var where = 'IFNULL(IsVoided, 0) = 0';
+    if (start != null && end != null) {
+      where += " AND date(BillDate, 'localtime') BETWEEN ? AND ?";
+      args.addAll([start, end]);
+    }
+
+    final rows = await db.rawQuery('''
+      SELECT SUM(CASE WHEN TotalAmount - CashReceived > 0.005
+                      THEN TotalAmount - CashReceived ELSE 0 END) AS Total
+      FROM Sales
+      WHERE $where
+    ''', args);
+
+    return (rows.first['Total'] as num?)?.toDouble() ?? 0.0;
+  }
 }
