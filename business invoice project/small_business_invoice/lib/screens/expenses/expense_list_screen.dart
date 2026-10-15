@@ -5,6 +5,7 @@ import '../../services/expense_repository.dart';
 import '../../utils/formatters.dart';
 import 'add_expense_screen.dart';
 import 'connection_error_view.dart';
+import 'expense_details_screen.dart';
 
 class ExpenseListScreen extends StatefulWidget {
   const ExpenseListScreen({super.key});
@@ -39,6 +40,15 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AddExpenseScreen()),
+    );
+  }
+
+  void _openDetails(Expense expense) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExpenseDetailsScreen(expenseId: expense.id),
+      ),
     );
   }
 
@@ -242,7 +252,7 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
-        onTap: () => _openEdit(e),
+        onTap: () => _openDetails(e),
         leading: CircleAvatar(
           backgroundColor: category.color.shade100,
           child: Icon(category.icon, color: category.color.shade700),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'expenses/add_expense_screen.dart';
 import 'expenses/expense_categories_screen.dart';
 import 'expenses/expense_list_screen.dart';
+import 'expenses/recent_expenses_card.dart';
 import '../services/expense_repository.dart';
 import '../utils/formatters.dart';
 
@@ -273,37 +274,7 @@ class DashboardScreen extends StatelessWidget {
 
             const SizedBox(height: 15),
 
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(30),
-                child: Center(
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.money_off,
-                        size: 55,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      const Text(
-                        'No expenses yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 5),
-
-                      const Text(
-                        'Your recent expenses will appear here.',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            const RecentExpensesCard(),
           ],
         ),
       ),
