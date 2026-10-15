@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'expenses/add_expense_screen.dart';
+import 'expenses/expense_categories_screen.dart';
+import 'expenses/expense_list_screen.dart';
+import '../services/expense_repository.dart';
+import '../utils/formatters.dart';
+
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
@@ -65,12 +71,29 @@ class DashboardScreen extends StatelessWidget {
               },
             ),
 
-            ListTile(
+            ExpansionTile(
               leading: const Icon(Icons.money_off),
               title: const Text('Expenses'),
-              onTap: () {
-                Navigator.pop(context);
-              },
+              children: [
+                ListTile(
+                  contentPadding: const EdgeInsets.only(left: 40, right: 16),
+                  leading: const Icon(Icons.add_circle_outline),
+                  title: const Text('Add Expense'),
+                  onTap: () => _go(context, const AddExpenseScreen()),
+                ),
+                ListTile(
+                  contentPadding: const EdgeInsets.only(left: 40, right: 16),
+                  leading: const Icon(Icons.list_alt),
+                  title: const Text('Expense List'),
+                  onTap: () => _go(context, const ExpenseListScreen()),
+                ),
+                ListTile(
+                  contentPadding: const EdgeInsets.only(left: 40, right: 16),
+                  leading: const Icon(Icons.category_outlined),
+                  title: const Text('Expense Categories'),
+                  onTap: () => _go(context, const ExpenseCategoriesScreen()),
+                ),
+              ],
             ),
 
             ListTile(
@@ -131,10 +154,14 @@ class DashboardScreen extends StatelessWidget {
                   Icons.trending_up,
                 ),
 
-                _summaryCard(
-                  'Total Expenses',
-                  'Rs. 0.00',
-                  Icons.money_off,
+                // Live total from the database (updates when expenses change)
+                ListenableBuilder(
+                  listenable: ExpenseRepository.instance,
+                  builder: (context, _) => _summaryCard(
+                    'Total Expenses',
+                    formatMoney(ExpenseRepository.instance.totalExpenses),
+                    Icons.money_off,
+                  ),
                 ),
 
                 _summaryCard(
@@ -177,7 +204,12 @@ class DashboardScreen extends StatelessWidget {
 
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AddExpenseScreen(),
+                      ),
+                    ),
                     icon: const Icon(Icons.add),
                     label: const Text('Add Expense'),
                   ),
@@ -275,6 +307,15 @@ class DashboardScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  // Close the drawer, then open a screen
+  static void _go(BuildContext context, Widget screen) {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
     );
   }
 

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'screens/dashboard_screen.dart';
+import 'services/expense_repository.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  ExpenseRepository.instance.load(); // fetch data from MySQL via the API
   runApp(const InvoiceExpenseApp());
 }
 
