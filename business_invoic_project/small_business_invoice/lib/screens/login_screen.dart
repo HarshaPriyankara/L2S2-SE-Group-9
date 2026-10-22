@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/app_session.dart';
 import '../services/database_helper.dart';
 import 'dashboard_screen.dart';
 
@@ -39,6 +40,11 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = false);
 
     if (user != null) {
+      // Title bar eke pennanna user name + role save karanawa
+      AppSession.userName.value =
+          (user['FullName'] ?? user['Username'] ?? '').toString();
+      AppSession.userRole.value = (user['UserRole'] ?? 'Cashier').toString();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Welcome, ${user['FullName']}!'),

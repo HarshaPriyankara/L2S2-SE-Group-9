@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import '../services/app_session.dart';
 import 'customer_screen.dart';
 import 'supplier_screen.dart';
 import 'user_screen.dart';
@@ -61,6 +62,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _selectedIndex = _navItems.indexWhere((item) => item.key == start);
     if (_selectedIndex < 0) _selectedIndex = 0;
     _maximizeWindow();
+    // Title bar eke Logout button eka me function eka call karanawa
+    AppSession.onLogout = _handleLogout;
+    // Notifier eka build eka athule wenas karanna baha -> post frame
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncTitle());
+  }
+
+  @override
+  void dispose() {
+    AppSession.onLogout = null;
+    super.dispose();
+  }
+
+  // Title bar eke page name eka update karanawa
+  void _syncTitle() {
+    AppSession.pageTitle.value = _navItems[_selectedIndex].label;
   }
 
   // Jump to a page by key (ignored if this user has no access to it)
@@ -71,6 +87,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _selectedIndex = index;
       _openExpenseForm = openExpenseForm;
     });
+    _syncTitle();
   }
 
   void _maximizeWindow() async {
@@ -81,6 +98,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _handleLogout() async {
+    // Title bar eke user info + page name clear karanawa
+    AppSession.clear();
+
     // Back to the smaller, centered login window
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       await windowManager.unmaximize();
@@ -215,23 +235,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         icon: _navItems[i].icon,
                         label: _navItems[i].label,
                         selected: _selectedIndex == i,
-                        onTap: () => setState(() {
-                          _selectedIndex = i;
-                          _openExpenseForm = false;
-                        }),
+                        onTap: () {
+                          setState(() {
+                            _selectedIndex = i;
+                            _openExpenseForm = false;
+                          });
+                          _syncTitle();
+                        },
                       ),
                   ],
                 ),
               ),
 
-              const Divider(height: 1),
-              const SizedBox(height: 8),
-              _sidebarTile(
-                icon: Icons.logout,
-                label: 'Logout',
-                color: Colors.red,
-                onTap: _handleLogout,
-              ),
               const SizedBox(height: 8),
             ],
           ),
@@ -264,39 +279,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // Page title dan title bar eke pennanawa, ethakota me page header eka ain kala
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Row(
         children: [
           _buildSidebar(),
-          Expanded(
-            child: Column(
-              children: [
-                _buildPageHeader(),
-                Expanded(child: _getSelectedScreen()),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Page title shown at the top of every page
-  Widget _buildPageHeader() {
-    final item = _navItems[_selectedIndex];
-
-    return Container(
-      width: double.infinity,
-      height: 64, // same height as the sidebar header
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Text(
-            item.label,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
+          Expanded(child: _getSelectedScreen()),
         ],
       ),
     );

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import '../services/app_session.dart';
 
 /// Title bar height (shared so other widgets can match it)
 const double kTitleBarHeight = 44;
 
 /// Custom window title bar (replaces the default OS title bar).
 /// Drag to move, double-click to maximize/restore.
+/// Shows: app name > current page, and (after login) date + user name/role.
 class CustomTitleBar extends StatefulWidget {
   const CustomTitleBar({super.key});
 
@@ -52,6 +54,69 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
     }
   }
 
+  // e.g. 22 Oct 2026
+  String _today() {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final n = DateTime.now();
+    return '${n.day} ${months[n.month - 1]} ${n.year}';
+  }
+
+  // Date + welcome message + logout button (hidden on the login screen)
+  Widget _buildUserInfo(ColorScheme cs) {
+    return ValueListenableBuilder<String>(
+      valueListenable: AppSession.userName,
+      builder: (context, name, _) {
+        if (name.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Row(
+            children: [
+              Icon(Icons.calendar_today,
+                  size: 14, color: cs.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Text(
+                _today(),
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                'Welcome, $name',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Logout button
+              TextButton.icon(
+                onPressed: () => AppSession.onLogout?.call(),
+                icon: const Icon(Icons.logout, size: 16),
+                label: const Text('Logout'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  backgroundColor: Colors.red.withValues(alpha: 0.08),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                  minimumSize: const Size(0, 30),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  textStyle: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -65,7 +130,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
         ),
         child: Row(
           children: [
-            // Draggable area (logo + title)
+            // Draggable area (logo + title + page name)
             Expanded(
               child: DragToMoveArea(
                 child: GestureDetector(
@@ -84,11 +149,38 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
                           color: cs.onSurface,
                         ),
                       ),
+                      // "Admin Dashboard" / "Cashier Dashboard" badge (empty on login screen)
+                      ValueListenableBuilder<String>(
+                        valueListenable: AppSession.userRole,
+                        builder: (context, role, _) {
+                          if (role.isEmpty) return const SizedBox.shrink();
+                          return Container(
+                            margin: const EdgeInsets.only(left: 14),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: cs.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '$role Dashboard',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: cs.onPrimaryContainer,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
+
+            // User info (date, name, role)
+            _buildUserInfo(cs),
 
             // Window buttons
             _TitleButton(
