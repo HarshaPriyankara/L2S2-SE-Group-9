@@ -195,31 +195,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header - click to toggle
-              InkWell(
-                onTap: _toggleSidebar,
-                child: SizedBox(
-                  height: 64,
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 24),
-                      Icon(
-                        _isExpanded ? Icons.menu_open : Icons.menu,
-                        color: cs.primary,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 16),
-                      if (_isExpanded)
-                        const Expanded(
-                          child: Text(
-                            'EasyBill',
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.clip,
-                            style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
+              // Own Material: hover/ripple stays inside the sidebar
+              // (without it the highlight spills over the page header)
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _toggleSidebar,
+                  child: SizedBox(
+                    height: 64,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 24),
+                        Icon(
+                          _isExpanded ? Icons.menu_open : Icons.menu,
+                          color: cs.primary,
+                          size: 24,
                         ),
-                    ],
+                        const SizedBox(width: 16),
+                        if (_isExpanded)
+                          const Expanded(
+                            child: Text(
+                              'EasyBill',
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.clip,
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -247,6 +252,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
 
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+              _sidebarTile(
+                icon: Icons.logout,
+                label: 'Logout',
+                color: Colors.red,
+                onTap: _handleLogout,
+              ),
               const SizedBox(height: 8),
             ],
           ),
@@ -279,14 +292,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Page title dan title bar eke pennanawa, ethakota me page header eka ain kala
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Row(
         children: [
           _buildSidebar(),
-          Expanded(child: _getSelectedScreen()),
+          Expanded(
+            child: Column(
+              children: [
+                _buildPageHeader(),
+                Expanded(child: _getSelectedScreen()),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Page title shown at the top of every page
+  Widget _buildPageHeader() {
+    final item = _navItems[_selectedIndex];
+
+    return Container(
+      width: double.infinity,
+      height: 64, // same height as the sidebar header
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          Text(
+            item.label,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
     );
