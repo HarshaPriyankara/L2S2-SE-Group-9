@@ -205,6 +205,12 @@ class _CustomerScreenState extends State<CustomerScreen> {
     _refreshCustomers();
   }
 
+  // null or empty text -> "N/A"
+  String _orNA(dynamic value) {
+    final text = (value ?? '').toString().trim();
+    return text.isEmpty ? 'N/A' : text;
+  }
+
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -257,7 +263,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
             title: Text(customer['CustomerName'],
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(
-              'Phone: ${customer['ContactNumber'] ?? 'N/A'} | Email: ${customer['Email'] ?? 'N/A'}',
+              'Phone: ${_orNA(customer['ContactNumber'])} | Email: ${_orNA(customer['Email'])}',
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
