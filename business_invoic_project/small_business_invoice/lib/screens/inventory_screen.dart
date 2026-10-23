@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
+import '../services/money_format.dart';
 
 class InventoryScreen extends StatefulWidget {
   /// Admin only: add / edit / delete / adjust stock / categories + cost price
@@ -45,7 +46,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return d == d.roundToDouble() ? d.toInt().toString() : d.toString();
   }
 
-  String _fmtPrice(dynamic v) => _num(v).toStringAsFixed(2);
+  String _fmtPrice(dynamic v) => fmtMoney(_num(v));
 
   /// ok | low | out
   String _statusOf(Map<String, dynamic> p) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 import '../services/pdf_service.dart';
+import '../services/money_format.dart';
 
 /// One line in the cart
 class _CartLine {
@@ -347,7 +348,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                               Padding(
                                 padding: const EdgeInsets.only(right: 6),
                                 child: Text(
-                                  normal.toStringAsFixed(2),
+                                  fmtMoney(normal),
                                   style: const TextStyle(
                                     color: Colors.grey,
                                     fontSize: 12,
@@ -355,7 +356,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                                   ),
                                 ),
                               ),
-                            Text('Rs. ${price.toStringAsFixed(2)}',
+                            Text(fmtRs(price),
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold)),
                             const SizedBox(width: 8),
@@ -449,8 +450,8 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                                           fontWeight: FontWeight.w600)),
                                   Text(
                                       line.normalPrice > line.unitPrice
-                                          ? 'Rs. ${line.unitPrice.toStringAsFixed(2)} each (Normal ${line.normalPrice.toStringAsFixed(2)})'
-                                          : 'Rs. ${line.unitPrice.toStringAsFixed(2)} each',
+                                          ? '${fmtRs(line.unitPrice)} each (Normal ${fmtMoney(line.normalPrice)})'
+                                          : '${fmtRs(line.unitPrice)} each',
                                       style: const TextStyle(
                                           fontSize: 12, color: Colors.grey)),
                                 ],
@@ -486,7 +487,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                             ),
                             SizedBox(
                               width: 80,
-                              child: Text(line.subTotal.toStringAsFixed(2),
+                              child: Text(fmtMoney(line.subTotal),
                                   textAlign: TextAlign.right,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold)),
@@ -547,7 +548,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                               decimal: true),
                           decoration: InputDecoration(
                               isDense: true,
-                              hintText: _total.toStringAsFixed(2)),
+                              hintText: fmtMoney(_total)),
                         ),
                       ),
                     ],
@@ -591,7 +592,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: style),
-        Text('Rs. ${value.toStringAsFixed(2)}', style: style),
+        Text(fmtRs(value), style: style),
       ],
     );
   }
@@ -612,7 +613,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
             title: Text(
                 'Invoice #${sale['BillID']} - ${sale['CustomerName'] ?? 'Cash Customer'}'),
             subtitle: Text(
-                'Date: ${sale['BillDate']} | ${sale['PaymentType']} | Total: Rs. ${(sale['TotalAmount'] as num).toStringAsFixed(2)}'),
+                'Date: ${sale['BillDate']} | ${sale['PaymentType']} | Total: ${fmtRs(sale['TotalAmount'] as num)}'),
             trailing: IconButton(
               icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
               tooltip: 'Save as PDF',

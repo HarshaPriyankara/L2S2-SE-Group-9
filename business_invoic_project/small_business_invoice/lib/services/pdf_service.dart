@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'money_format.dart';
 
 class PdfService {
   // 1.0 -> "1", 2.5 -> "2.5"
@@ -82,9 +83,9 @@ class PdfService {
                     (index + 1).toString(),
                     item['ProductName'] ?? 'Product',
                     _fmtQty(item['Quantity']),
-                    normal.toStringAsFixed(2),
-                    unit.toStringAsFixed(2),
-                    (item['SubTotal'] as num).toStringAsFixed(2),
+                    fmtMoney(normal),
+                    fmtMoney(unit),
+                    fmtMoney(item['SubTotal'] as num),
                   ];
                 }),
                 headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
@@ -114,14 +115,14 @@ class PdfService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
-                      pw.Text('Normal Total: Rs. ${normalTotal.toStringAsFixed(2)}'),
-                      pw.Text('Discount: Rs. ${discount.toStringAsFixed(2)}'),
+                      pw.Text('Normal Total: ${fmtRs(normalTotal)}'),
+                      pw.Text('Discount: ${fmtRs(discount)}'),
                       pw.Text(
-                        'Total Amount: Rs. ${total.toStringAsFixed(2)}',
+                        'Total Amount: ${fmtRs(total)}',
                         style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
                       ),
-                      pw.Text('Cash Paid: Rs. ${(sale['CashReceived'] as num).toStringAsFixed(2)}'),
-                      pw.Text('Balance: Rs. ${(sale['Balance'] as num).toStringAsFixed(2)}'),
+                      pw.Text('Cash Paid: ${fmtRs(sale['CashReceived'] as num)}'),
+                      pw.Text('Balance: ${fmtRs(sale['Balance'] as num)}'),
                     ],
                   ),
                 ],
