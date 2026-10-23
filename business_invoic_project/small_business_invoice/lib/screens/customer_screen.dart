@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 
 class CustomerScreen extends StatefulWidget {
-  const CustomerScreen({super.key});
+  /// Cashier can add / edit customers, only Admin can delete
+  final bool isAdmin;
+
+  const CustomerScreen({super.key, this.isAdmin = false});
 
   @override
   State<CustomerScreen> createState() => _CustomerScreenState();
@@ -263,15 +266,16 @@ class _CustomerScreenState extends State<CustomerScreen> {
                   icon: const Icon(Icons.edit, color: Colors.blue),
                   onPressed: () => _showCustomerDialog(customer: customer),
                 ),
-                IconButton(
-                  icon: Icon(
-                    Icons.delete,
-                    color: customer['CustomerID'] == _defaultCustomerId
-                        ? Colors.grey
-                        : Colors.red,
+                if (widget.isAdmin)
+                  IconButton(
+                    icon: Icon(
+                      Icons.delete,
+                      color: customer['CustomerID'] == _defaultCustomerId
+                          ? Colors.grey
+                          : Colors.red,
+                    ),
+                    onPressed: () => _deleteCustomer(customer['CustomerID']),
                   ),
-                  onPressed: () => _deleteCustomer(customer['CustomerID']),
-                ),
               ],
             ),
           ),

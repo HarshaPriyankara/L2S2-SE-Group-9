@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 
 class SupplierScreen extends StatefulWidget {
-  const SupplierScreen({super.key});
+  /// Admin only: add / edit / delete (Cashier can only view)
+  final bool isAdmin;
+
+  const SupplierScreen({super.key, this.isAdmin = false});
 
   @override
   State<SupplierScreen> createState() => _SupplierScreenState();
@@ -262,20 +265,23 @@ class _SupplierScreenState extends State<SupplierScreen> {
               'Company: ${company.isEmpty ? 'N/A' : company} | '
               'Phone: ${phone.isEmpty ? 'N/A' : phone}',
             ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: () => _showSupplierDialog(supplier: supplier),
-                ),
-                IconButton(
-                  icon: Icon(Icons.delete,
-                      color: isDefault ? Colors.grey : Colors.red),
-                  onPressed: () => _confirmDelete(supplier),
-                ),
-              ],
-            ),
+            trailing: widget.isAdmin
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blue),
+                        onPressed: () =>
+                            _showSupplierDialog(supplier: supplier),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete,
+                            color: isDefault ? Colors.grey : Colors.red),
+                        onPressed: () => _confirmDelete(supplier),
+                      ),
+                    ],
+                  )
+                : null,
           ),
         );
       },
@@ -291,11 +297,13 @@ class _SupplierScreenState extends State<SupplierScreen> {
           Expanded(child: _buildList()),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showSupplierDialog(),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Supplier'),
-      ),
+      floatingActionButton: widget.isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () => _showSupplierDialog(),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Supplier'),
+            )
+          : null,
     );
   }
 }

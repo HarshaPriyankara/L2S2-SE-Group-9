@@ -85,7 +85,7 @@ class _DashboardOverviewState extends State<DashboardOverview> {
 
   double _income = 0;
   double _expenses = 0;
-  double _outstanding = 0;
+  double _salesProfit = 0; // (selling price - supplier price) x qty
   List<_Bucket> _incomeBuckets = [];
   List<_Bucket> _expenseBuckets = [];
 
@@ -144,10 +144,10 @@ class _DashboardOverviewState extends State<DashboardOverview> {
       final String? e = span == null ? null : _fmt(span.end);
       final db = DatabaseHelper.instance;
 
-      final (incomeDaily, expenseDaily, outstanding) = await (
+      final (incomeDaily, expenseDaily, salesProfit) = await (
         db.getDailyIncome(start: s, end: e),
         db.getDailyExpenses(start: s, end: e),
-        db.getOutstandingAmount(start: s, end: e),
+        db.getSalesProfit(start: s, end: e),
       ).wait;
 
       if (!mounted || id != _reqId) return;
@@ -157,7 +157,7 @@ class _DashboardOverviewState extends State<DashboardOverview> {
       setState(() {
         _income = incomeDaily.values.fold(0.0, (a, b) => a + b);
         _expenses = expenseDaily.values.fold(0.0, (a, b) => a + b);
-        _outstanding = outstanding;
+        _salesProfit = salesProfit;
         _incomeBuckets = plan == null
             ? []
             : _makeBuckets(plan.mode, plan.start, plan.end, incomeDaily);
@@ -359,7 +359,8 @@ class _DashboardOverviewState extends State<DashboardOverview> {
   }
 
   Widget _buildCards() {
-    final net = _income - _expenses;
+    // Net profit = sales profit - expenses
+    final net = _salesProfit - _expenses;
 
     return Wrap(
       spacing: 15,
@@ -369,10 +370,12 @@ class _DashboardOverviewState extends State<DashboardOverview> {
             color: Colors.green.shade700),
         _summaryCard('Total Expenses', _money(_expenses), Icons.money_off,
             color: Colors.red.shade600),
+        _summaryCard('Sales Profit', _money(_salesProfit), Icons.show_chart,
+            color: _salesProfit < 0
+                ? Colors.red.shade600
+                : Colors.teal.shade700),
         _summaryCard('Net Profit', _money(net), Icons.account_balance_wallet,
             color: net < 0 ? Colors.red.shade600 : Colors.blue.shade700),
-        _summaryCard('Outstanding', _money(_outstanding), Icons.pending_actions,
-            color: Colors.orange.shade800),
       ],
     );
   }

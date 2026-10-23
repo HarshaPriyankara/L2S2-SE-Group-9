@@ -44,7 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _NavItem('customers', Icons.people, 'Customers'),
     _NavItem('suppliers', Icons.local_shipping, 'Suppliers'),
     _NavItem('invoices', Icons.receipt_long, 'Invoices'),
-    _NavItem('expenses', Icons.money_off, 'Expenses'),
+    _NavItem('expenses', Icons.money_off, 'Expenses', adminOnly: true),
     _NavItem('users', Icons.manage_accounts, 'Users', adminOnly: true),
   ];
 
@@ -276,11 +276,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onAddExpense: () => _goTo('expenses', openExpenseForm: true),
         );
       case 'inventory':
-        return const InventoryScreen();
+        return InventoryScreen(isAdmin: _isAdmin);
       case 'customers':
-        return const CustomerScreen();
+        return CustomerScreen(isAdmin: _isAdmin);
       case 'suppliers':
-        return const SupplierScreen();
+        return SupplierScreen(isAdmin: _isAdmin);
       case 'invoices':
         return const InvoiceScreen();
       case 'expenses':

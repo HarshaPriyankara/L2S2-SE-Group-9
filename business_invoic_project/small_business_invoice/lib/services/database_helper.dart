@@ -527,7 +527,7 @@ class DatabaseHelper {
       FROM Expenses E
       LEFT JOIN ExpenseCategories EC ON E.ExCatID = EC.ExCatID
       LEFT JOIN Suppliers S ON E.SupplierID = S.SupplierID
-      ORDER BY E.ExID DESC
+      ORDER BY E.ExpenseDate DESC, E.ExID DESC
     ''');
   }
 
@@ -611,7 +611,29 @@ class DatabaseHelper {
     };
   }
 
-  // 3. Outstanding = invoice total that is not yet paid (TotalAmount - CashReceived)
+  // 3. Sales profit = sum of (selling price - supplier price) x quantity
+  //    (voided invoices are ignored)
+  Future<double> getSalesProfit({String? start, String? end}) async {
+    final db = await instance.database;
+    final args = <Object>[];
+    var where = 'IFNULL(s.IsVoided, 0) = 0';
+    if (start != null && end != null) {
+      where += " AND date(s.BillDate, 'localtime') BETWEEN ? AND ?";
+      args.addAll([start, end]);
+    }
+
+    final rows = await db.rawQuery('''
+      SELECT SUM((si.UnitPrice - IFNULL(p.SupplierPrice, 0)) * si.Quantity) AS Profit
+      FROM SaleItems si
+      JOIN Sales s ON s.BillID = si.BillID
+      LEFT JOIN Products p ON p.ProductID = si.ProductID
+      WHERE $where
+    ''', args);
+
+    return (rows.first['Profit'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  // 4. Outstanding = invoice total that is not yet paid (TotalAmount - CashReceived)
   Future<double> getOutstandingAmount({String? start, String? end}) async {
     final db = await instance.database;
     final args = <Object>[];

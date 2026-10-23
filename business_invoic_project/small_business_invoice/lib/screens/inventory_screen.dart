@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 
 class InventoryScreen extends StatefulWidget {
-  const InventoryScreen({super.key});
+  /// Admin only: add / edit / delete / adjust stock / categories + cost price
+  final bool isAdmin;
+
+  const InventoryScreen({super.key, this.isAdmin = false});
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
@@ -613,12 +616,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   },
                 ),
               ),
-              const SizedBox(width: 12),
-              IconButton.outlined(
-                tooltip: 'Manage Categories',
-                icon: const Icon(Icons.category),
-                onPressed: _showCategoriesDialog,
-              ),
+              if (widget.isAdmin) ...[
+                const SizedBox(width: 12),
+                IconButton.outlined(
+                  tooltip: 'Manage Categories',
+                  icon: const Icon(Icons.category),
+                  onPressed: _showCategoriesDialog,
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -688,8 +693,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     'Category: ${product['CategoryName'] ?? 'N/A'} | Supplier: ${product['SupplierName'] ?? 'N/A'}'),
                 Text(
                     'Stock: ${_fmtQty(product['StockQuantity'])} (Min: ${_fmtQty(product['MinimumStock'])})'),
+                // Cost price is hidden from Cashier
                 Text(
-                    'Cost: Rs. ${_fmtPrice(product['SupplierPrice'])} | Normal: Rs. ${_fmtPrice(product['NormalPrice'])} | Our: Rs. ${_fmtPrice(product['OurPrice'])}'),
+                    '${widget.isAdmin ? 'Cost: Rs. ${_fmtPrice(product['SupplierPrice'])} | ' : ''}Normal: Rs. ${_fmtPrice(product['NormalPrice'])} | Our: Rs. ${_fmtPrice(product['OurPrice'])}'),
               ],
             ),
             trailing: Row(
@@ -711,22 +717,24 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         fontWeight: FontWeight.w600),
                   ),
                 ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(Icons.add_box, color: Colors.green),
-                  tooltip: 'Adjust Stock',
-                  onPressed: () => _showAdjustStockDialog(product),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  tooltip: 'Edit',
-                  onPressed: () => _showProductDialog(product: product),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  tooltip: 'Delete',
-                  onPressed: () => _confirmDelete(product),
-                ),
+                if (widget.isAdmin) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Icons.add_box, color: Colors.green),
+                    tooltip: 'Adjust Stock',
+                    onPressed: () => _showAdjustStockDialog(product),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue),
+                    tooltip: 'Edit',
+                    onPressed: () => _showProductDialog(product: product),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    tooltip: 'Delete',
+                    onPressed: () => _confirmDelete(product),
+                  ),
+                ],
               ],
             ),
           ),
@@ -744,11 +752,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
           Expanded(child: _buildList()),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showProductDialog(),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Product'),
-      ),
+      floatingActionButton: widget.isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () => _showProductDialog(),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Product'),
+            )
+          : null,
     );
   }
 }
