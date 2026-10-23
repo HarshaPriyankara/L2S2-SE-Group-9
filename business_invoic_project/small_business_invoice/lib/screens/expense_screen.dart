@@ -71,11 +71,14 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         _filteredExpenses = _expenses.where((e) {
           final cat = (e['ExCatName'] ?? '').toString().toLowerCase();
           final supplier = (e['SupplierName'] ?? '').toString().toLowerCase();
+          final company =
+              (e['SupplierCompany'] ?? '').toString().toLowerCase();
           final notes = (e['Notes'] ?? '').toString().toLowerCase();
           final pay = _paymentLabel(e['PaymentType']).toLowerCase();
           final amount = (e['Amount'] ?? '').toString();
           return cat.contains(q) ||
               supplier.contains(q) ||
+              company.contains(q) ||
               notes.contains(q) ||
               pay.contains(q) ||
               amount.contains(q);
@@ -429,7 +432,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               controller: _searchController,
               onChanged: _applySearch,
               decoration: InputDecoration(
-                hintText: 'Search by category, supplier, notes or amount...',
+                hintText: 'Search by category, supplier, company, notes or amount...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -482,6 +485,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         final item = _filteredExpenses[index];
         final String category = (item['ExCatName'] ?? 'General').toString();
         final String supplier = (item['SupplierName'] ?? '').toString();
+        final String company = (item['SupplierCompany'] ?? '').toString();
         final String notes = (item['Notes'] ?? '').toString();
         final String date = (item['ExpenseDate'] ?? '').toString();
         final bool isCash = item['PaymentType'] == 'CASH';
@@ -491,7 +495,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           category,
           _paymentLabel(item['PaymentType']),
           if (date.isNotEmpty) date,
-          if (supplier.isNotEmpty) 'Supplier: $supplier',
+          if (supplier.isNotEmpty)
+            'Supplier: $supplier${company.isNotEmpty ? ' ($company)' : ''}',
           if (notes.isNotEmpty) notes,
         ];
 

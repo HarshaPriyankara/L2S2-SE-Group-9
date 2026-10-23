@@ -523,7 +523,7 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getExpenses() async {
     final db = await instance.database;
     return await db.rawQuery('''
-      SELECT E.*, EC.ExCatName, S.SupplierName
+      SELECT E.*, EC.ExCatName, S.SupplierName, S.SupplierCompany
       FROM Expenses E
       LEFT JOIN ExpenseCategories EC ON E.ExCatID = EC.ExCatID
       LEFT JOIN Suppliers S ON E.SupplierID = S.SupplierID
