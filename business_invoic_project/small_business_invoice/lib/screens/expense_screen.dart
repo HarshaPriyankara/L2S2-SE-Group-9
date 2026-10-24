@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/app_session.dart';
 import '../services/database_helper.dart';
-import '../services/money_format.dart';
 
 class ExpenseScreen extends StatefulWidget {
   /// true -> open the "Add New Expense" dialog as soon as the screen loads
@@ -232,8 +232,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                       controller: amountController,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Amount (Rs.) *',
+                      decoration: InputDecoration(
+                        labelText: 'Amount (${AppSession.currency}) *',
                         prefixIcon: Icon(Icons.payments),
                       ),
                       validator: (val) {
@@ -397,7 +397,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Expense'),
         content: Text(
-            'Are you sure you want to delete this expense of ${fmtRs((expense['Amount'] as num?) ?? 0)}?'),
+            'Are you sure you want to delete this expense of ${AppSession.currency} ${expense['Amount']}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -511,7 +511,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               ),
             ),
             title: Text(
-              fmtRs(amount),
+              '${AppSession.currency} ${amount.toStringAsFixed(2)}',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: Text(parts.join(' | ')),

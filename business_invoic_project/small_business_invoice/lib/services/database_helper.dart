@@ -7,14 +7,48 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String _dbFileName = 'easybill.db';
-  static const int _dbVersion = 6; // 5 -> 6 (Products.Barcode)
+  static const int _dbVersion = 7; // 6 -> 7 (invoice / POS settings columns)
 
   DatabaseHelper._init();
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB(_dbFileName);
-    return _database!;
+    final db = await _initDB(_dbFileName);
+    await _ensureSchema(db);
+    _database = db;
+    return db;
+  }
+
+  // Safety net: add any column that is still missing.
+  // (sqflite does NOT run onUpgrade again when the database is already open,
+  //  e.g. after a Flutter "hot restart", so a new column could be missing.)
+  Future<void> _ensureColumn(
+      Database db, String table, String column, String type) async {
+    final info = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = info.any((row) => row['name'] == column);
+    if (!exists) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
+    }
+  }
+
+  Future<void> _ensureSchema(Database db) async {
+    const storeColumns = {
+      'StoreContact': 'TEXT',
+      'AutoLogoutMinutes': 'INTEGER DEFAULT 10',
+      'StoreAddress': 'TEXT',
+      'StoreEmail': 'TEXT',
+      'FooterMessage': 'TEXT',
+      'CurrencySymbol': 'TEXT',
+      'InvoicePrefix': 'TEXT',
+      'ReceiptSize': 'TEXT',
+      'LowStockLimit': 'INTEGER',
+      'AutoPrint': 'INTEGER',
+    };
+    for (final e in storeColumns.entries) {
+      await _ensureColumn(db, 'Store', e.key, e.value);
+    }
+    await _ensureColumn(db, 'Products', 'Barcode', 'TEXT');
+    await _createBarcodeIndex(db);
   }
 
   Future<Database> _initDB(String filePath) async {
@@ -40,7 +74,15 @@ class DatabaseHelper {
         StoreName TEXT NOT NULL,
         StoreLogo TEXT,
         StoreContact TEXT,
-        AutoLogoutMinutes INTEGER DEFAULT 10
+        AutoLogoutMinutes INTEGER DEFAULT 10,
+        StoreAddress TEXT,
+        StoreEmail TEXT,
+        FooterMessage TEXT,
+        CurrencySymbol TEXT,
+        InvoicePrefix TEXT,
+        ReceiptSize TEXT,
+        LowStockLimit INTEGER,
+        AutoPrint INTEGER
       )
     ''');
 
@@ -199,6 +241,22 @@ class DatabaseHelper {
       // Barcode scanner support
       await db.execute('ALTER TABLE Products ADD COLUMN Barcode TEXT');
       await _createBarcodeIndex(db);
+    }
+    if (oldVersion < 7) {
+      // Invoice / receipt / POS settings (Settings page)
+      const cols = {
+        'StoreAddress': 'TEXT',
+        'StoreEmail': 'TEXT',
+        'FooterMessage': 'TEXT',
+        'CurrencySymbol': 'TEXT',
+        'InvoicePrefix': 'TEXT',
+        'ReceiptSize': 'TEXT',
+        'LowStockLimit': 'INTEGER',
+        'AutoPrint': 'INTEGER',
+      };
+      for (final e in cols.entries) {
+        await db.execute('ALTER TABLE Store ADD COLUMN ${e.key} ${e.value}');
+      }
     }
   }
 
@@ -544,32 +602,53 @@ class DatabaseHelper {
   }
 
   // -----------------------------------------------------------------------------------
-  // Business (Store) settings: name + telephone, used on the invoice PDF
+  // Business (Store) + invoice / POS settings.
+  // A NULL column falls back to the default below (an empty string is kept,
+  // e.g. an empty footer message = "no footer").
+  static const Map<String, dynamic> _storeDefaults = {
+    'StoreName': 'EasyBill POS',
+    'StoreContact': '',
+    'StoreAddress': '',
+    'StoreEmail': '',
+    'StoreLogo': null, // base64 of a PNG / JPG
+    'FooterMessage': 'Thank you for your business!',
+    'CurrencySymbol': 'Rs.',
+    'InvoicePrefix': 'INV-',
+    'ReceiptSize': 'A4', // 'A4' or '80mm'
+    'LowStockLimit': 5,
+    'AutoLogoutMinutes': 10, // 0 = off
+    'AutoPrint': 0, // 1 = open print preview after every sale
+  };
+
   Future<Map<String, dynamic>> getStore() async {
     final db = await instance.database;
     final rows = await db.query('Store', limit: 1);
-    if (rows.isNotEmpty) return rows.first;
-    return {
-      'StoreName': 'EasyBill POS',
-      'StoreContact': '',
-      'AutoLogoutMinutes': 10,
-    };
+
+    final result = Map<String, dynamic>.from(_storeDefaults);
+    if (rows.isNotEmpty) {
+      rows.first.forEach((key, value) {
+        if (value != null) result[key] = value;
+      });
+    }
+    return result;
   }
 
-  // Auto logout idle minutes (0 = off)
-  Future<void> setAutoLogoutMinutes(int minutes) async {
+  /// Save one or more Store columns (creates the row if it does not exist)
+  Future<void> saveStoreFields(Map<String, Object?> values) async {
     final db = await instance.database;
     final rows = await db.query('Store', limit: 1);
+
     if (rows.isEmpty) {
-      await db.insert('Store', {
-        'StoreName': 'EasyBill POS',
-        'AutoLogoutMinutes': minutes,
-      });
+      await db.insert('Store', {'StoreName': 'EasyBill POS', ...values});
     } else {
-      await db.update('Store', {'AutoLogoutMinutes': minutes},
+      await db.update('Store', values,
           where: 'StoreID = ?', whereArgs: [rows.first['StoreID']]);
     }
   }
+
+  // Auto logout idle minutes (0 = off)
+  Future<void> setAutoLogoutMinutes(int minutes) =>
+      saveStoreFields({'AutoLogoutMinutes': minutes});
 
   // -----------------------------------------------------------------------------------
   // Backup / Restore
@@ -664,19 +743,6 @@ class DatabaseHelper {
       whereArgs: [userId],
     );
     return true;
-  }
-
-  Future<void> saveStore({required String name, String? contact}) async {
-    final db = await instance.database;
-    final rows = await db.query('Store', limit: 1);
-    final data = {'StoreName': name, 'StoreContact': contact};
-
-    if (rows.isEmpty) {
-      await db.insert('Store', data);
-    } else {
-      await db.update('Store', data,
-          where: 'StoreID = ?', whereArgs: [rows.first['StoreID']]);
-    }
   }
 
   // -----------------------------------------------------------------------------------

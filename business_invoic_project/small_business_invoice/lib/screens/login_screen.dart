@@ -37,10 +37,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final user = await DatabaseHelper.instance.loginUser(username, password);
 
     if (user != null) {
-      // Auto logout setting (Settings page eken wenas karanna puluwan)
-      final store = await DatabaseHelper.instance.getStore();
-      AppSession.autoLogoutMinutes.value =
-          (store['AutoLogoutMinutes'] as num?)?.toInt() ?? 10;
+      // Settings page values (currency, invoice prefix, auto logout, ...)
+      AppSession.applyStore(await DatabaseHelper.instance.getStore());
     }
 
     if (!mounted) return;

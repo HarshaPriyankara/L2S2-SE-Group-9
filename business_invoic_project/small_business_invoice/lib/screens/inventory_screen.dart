@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/app_session.dart';
 import '../services/database_helper.dart';
 
 class InventoryScreen extends StatefulWidget {
@@ -51,8 +52,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
   String _statusOf(Map<String, dynamic> p) {
     final stock = _num(p['StockQuantity']);
     final min = _num(p['MinimumStock']);
+    // Product's own Minimum Stock if set, otherwise the Settings low stock limit
+    final limit = min > 0 ? min : AppSession.lowStockLimit.toDouble();
     if (stock <= 0) return 'out';
-    if (stock <= min) return 'low';
+    if (stock <= limit) return 'low';
     return 'ok';
   }
 
@@ -271,8 +274,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           controller: supplierPriceController,
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Supplier Price (Rs.) *',
+                          decoration: InputDecoration(
+                            labelText: 'Supplier Price (${AppSession.currency}) *',
                             prefixIcon: Icon(Icons.shopping_cart),
                           ),
                           validator: (val) => _requiredNumber(val, 'price'),
@@ -284,8 +287,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           controller: normalPriceController,
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'Normal Price (Rs.) *',
+                          decoration: InputDecoration(
+                            labelText: 'Normal Price (${AppSession.currency}) *',
                             prefixIcon: Icon(Icons.sell),
                           ),
                           validator: (val) => _requiredNumber(val, 'price'),
@@ -298,8 +301,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     controller: ourPriceController,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Our Price (Rs.) *',
+                    decoration: InputDecoration(
+                      labelText: 'Our Price (${AppSession.currency}) *',
                       prefixIcon: Icon(Icons.price_check),
                     ),
                     validator: (val) => _requiredNumber(val, 'price'),
@@ -726,7 +729,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     'Stock: ${_fmtQty(product['StockQuantity'])} (Min: ${_fmtQty(product['MinimumStock'])})'),
                 // Cost price is hidden from Cashier
                 Text(
-                    '${widget.isAdmin ? 'Cost: Rs. ${_fmtPrice(product['SupplierPrice'])} | ' : ''}Normal: Rs. ${_fmtPrice(product['NormalPrice'])} | Our: Rs. ${_fmtPrice(product['OurPrice'])}'),
+                    '${widget.isAdmin ? 'Cost: ${AppSession.currency} ${_fmtPrice(product['SupplierPrice'])} | ' : ''}Normal: ${AppSession.currency} ${_fmtPrice(product['NormalPrice'])} | Our: ${AppSession.currency} ${_fmtPrice(product['OurPrice'])}'),
               ],
             ),
             trailing: Row(

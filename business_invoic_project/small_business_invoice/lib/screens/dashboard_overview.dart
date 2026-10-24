@@ -1,8 +1,8 @@
 import 'dart:math' as math;
+import '../services/app_session.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
-import '../services/money_format.dart';
 
 /// Options shown in the dashboard dropdown
 enum DashRange {
@@ -44,7 +44,8 @@ const List<String> _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 String _two(int n) => n.toString().padLeft(2, '0');
 String _fmt(DateTime d) => '${d.year}-${_two(d.month)}-${_two(d.day)}';
 
-String _money(double v) => fmtRs(v);
+String _money(double v) =>
+    '${AppSession.currency} ${v.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+\.)'), (m) => '${m[1]},')}';
 
 String _trim(double v) => v.toStringAsFixed(1).replaceFirst(RegExp(r'\.0$'), '');
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/app_session.dart';
 import '../services/database_helper.dart';
 import '../services/pdf_service.dart';
 
@@ -248,6 +249,14 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     }
   }
 
+  Future<void> _printInvoice(Map<String, dynamic> details) async {
+    try {
+      await PdfService.printInvoice(details);
+    } catch (e) {
+      _msg('Could not open print preview: $e');
+    }
+  }
+
   // ------------------------------------------------------------ checkout
   Future<void> _checkout() async {
     if (_cart.isEmpty) return;
@@ -284,11 +293,16 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       _clearCart();
       await _loadAll(); // refresh stock + history
 
-      _msg('Invoice #$billId saved', color: Colors.green);
+      _msg('Invoice ${AppSession.formatInvoiceNo(billId)} saved',
+          color: Colors.green);
 
       final details = await DatabaseHelper.instance.getSaleDetails(billId);
       if (details != null) {
-        await _savePdf(details);
+        if (AppSession.autoPrint) {
+          await _printInvoice(details); // Settings: auto print after sale
+        } else {
+          await _savePdf(details);
+        }
       }
     } catch (e) {
       _msg('Could not save invoice: ${e.toString().replaceFirst('Exception: ', '')}');
@@ -383,7 +397,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                                   ),
                                 ),
                               ),
-                            Text('Rs. ${price.toStringAsFixed(2)}',
+                            Text('${AppSession.currency} ${price.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold)),
                             const SizedBox(width: 8),
@@ -477,8 +491,8 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                                           fontWeight: FontWeight.w600)),
                                   Text(
                                       line.normalPrice > line.unitPrice
-                                          ? 'Rs. ${line.unitPrice.toStringAsFixed(2)} each (Normal ${line.normalPrice.toStringAsFixed(2)})'
-                                          : 'Rs. ${line.unitPrice.toStringAsFixed(2)} each',
+                                          ? '${AppSession.currency} ${line.unitPrice.toStringAsFixed(2)} each (Normal ${line.normalPrice.toStringAsFixed(2)})'
+                                          : '${AppSession.currency} ${line.unitPrice.toStringAsFixed(2)} each',
                                       style: const TextStyle(
                                           fontSize: 12, color: Colors.grey)),
                                 ],
@@ -564,7 +578,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Expanded(child: Text('Cash Received (Rs.)')),
+                      Expanded(child: Text('Cash Received (${AppSession.currency})')),
                       SizedBox(
                         width: 120,
                         child: TextField(
@@ -619,7 +633,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: style),
-        Text('Rs. ${value.toStringAsFixed(2)}', style: style),
+        Text('${AppSession.currency} ${value.toStringAsFixed(2)}', style: style),
       ],
     );
   }
@@ -638,17 +652,31 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
           child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.receipt)),
             title: Text(
-                'Invoice #${sale['BillID']} - ${sale['CustomerName'] ?? 'Cash Customer'}'),
+                'Invoice ${AppSession.formatInvoiceNo(sale['BillID'] as int)} - ${sale['CustomerName'] ?? 'Cash Customer'}'),
             subtitle: Text(
-                'Date: ${sale['BillDate']} | ${sale['PaymentType']} | Total: Rs. ${(sale['TotalAmount'] as num).toStringAsFixed(2)}'),
-            trailing: IconButton(
-              icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
-              tooltip: 'Save as PDF',
-              onPressed: () async {
-                final d = await DatabaseHelper.instance
-                    .getSaleDetails(sale['BillID'] as int);
-                if (d != null) await _savePdf(d);
-              },
+                'Date: ${sale['BillDate']} | ${sale['PaymentType']} | Total: ${AppSession.currency} ${(sale['TotalAmount'] as num).toStringAsFixed(2)}'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.print, color: Colors.blue),
+                  tooltip: 'Print',
+                  onPressed: () async {
+                    final d = await DatabaseHelper.instance
+                        .getSaleDetails(sale['BillID'] as int);
+                    if (d != null) await _printInvoice(d);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                  tooltip: 'Save as PDF',
+                  onPressed: () async {
+                    final d = await DatabaseHelper.instance
+                        .getSaleDetails(sale['BillID'] as int);
+                    if (d != null) await _savePdf(d);
+                  },
+                ),
+              ],
             ),
           ),
         );
