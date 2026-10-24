@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
-import '../services/money_format.dart';
 
 class InventoryScreen extends StatefulWidget {
   /// Admin only: add / edit / delete / adjust stock / categories + cost price
@@ -46,7 +45,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return d == d.roundToDouble() ? d.toInt().toString() : d.toString();
   }
 
-  String _fmtPrice(dynamic v) => fmtMoney(_num(v));
+  String _fmtPrice(dynamic v) => _num(v).toStringAsFixed(2);
 
   /// ok | low | out
   String _statusOf(Map<String, dynamic> p) {
@@ -120,7 +119,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
         final name = (p['ProductName'] ?? '').toString().toLowerCase();
         final cat = (p['CategoryName'] ?? '').toString().toLowerCase();
         final sup = (p['SupplierName'] ?? '').toString().toLowerCase();
-        return name.contains(q) || cat.contains(q) || sup.contains(q);
+        final code = (p['Barcode'] ?? '').toString().toLowerCase();
+        return name.contains(q) ||
+            cat.contains(q) ||
+            sup.contains(q) ||
+            code.contains(q);
       }).toList();
     });
   }
@@ -137,6 +140,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
   void _showProductDialog({Map<String, dynamic>? product}) {
     final nameController =
         TextEditingController(text: product?['ProductName']?.toString() ?? '');
+    final barcodeController =
+        TextEditingController(text: product?['Barcode']?.toString() ?? '');
     final stockController = TextEditingController(
         text: product == null ? '0' : _fmtQty(product['StockQuantity']));
     final minController = TextEditingController(
@@ -183,6 +188,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     validator: (val) => (val == null || val.trim().isEmpty)
                         ? 'Please enter product name'
                         : null,
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: barcodeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Barcode',
+                      prefixIcon: Icon(Icons.qr_code_scanner),
+                      hintText: 'Scan with the scanner or type it',
+                    ),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<int>(
@@ -303,7 +317,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ElevatedButton(
             onPressed: () async {
               if (formKey.currentState!.validate()) {
+                // One barcode can belong to one product only
+                final String barcode = barcodeController.text.trim();
+                if (barcode.isNotEmpty) {
+                  final existing =
+                      await DatabaseHelper.instance.getProductByBarcode(barcode);
+                  if (existing != null &&
+                      existing['ProductID'] != product?['ProductID']) {
+                    _showMessage(
+                        'Barcode already used by "${existing['ProductName']}"');
+                    return;
+                  }
+                }
+
                 final Map<String, dynamic> data = {
+                  'Barcode': barcode.isEmpty ? null : barcode,
                   'ProductName': nameController.text.trim(),
                   'CategoryID': selectedCategoryId,
                   'SupplierID': selectedSupplierId,
@@ -571,7 +599,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   controller: _searchController,
                   onChanged: (_) => _applyFilters(),
                   decoration: InputDecoration(
-                    hintText: 'Search by product, category or supplier...',
+                    hintText: 'Search by product, barcode, category or supplier...',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
@@ -692,6 +720,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
               children: [
                 Text(
                     'Category: ${product['CategoryName'] ?? 'N/A'} | Supplier: ${product['SupplierName'] ?? 'N/A'}'),
+                if ((product['Barcode'] ?? '').toString().isNotEmpty)
+                  Text('Barcode: ${product['Barcode']}'),
                 Text(
                     'Stock: ${_fmtQty(product['StockQuantity'])} (Min: ${_fmtQty(product['MinimumStock'])})'),
                 // Cost price is hidden from Cashier

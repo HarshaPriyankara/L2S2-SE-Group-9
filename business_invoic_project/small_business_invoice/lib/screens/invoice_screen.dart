@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 import '../services/pdf_service.dart';
-import '../services/money_format.dart';
 
 /// One line in the cart
 class _CartLine {
@@ -57,6 +56,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
 
   final _searchController = TextEditingController();
   final _cashController = TextEditingController();
+  final _scanFocus = FocusNode(); // search box also receives barcode scans
 
   @override
   void initState() {
@@ -68,6 +68,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   void dispose() {
     _searchController.dispose();
     _cashController.dispose();
+    _scanFocus.dispose();
     super.dispose();
   }
 
@@ -116,9 +117,32 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
         if (q.isEmpty) return true;
         final name = (p['ProductName'] ?? '').toString().toLowerCase();
         final cat = (p['CategoryName'] ?? '').toString().toLowerCase();
-        return name.contains(q) || cat.contains(q);
+        final code = (p['Barcode'] ?? '').toString().toLowerCase();
+        return name.contains(q) || cat.contains(q) || code.contains(q);
       }).toList();
     });
+  }
+
+  // Barcode scanner = keyboard: it types the code and presses Enter.
+  // Exact barcode match -> add 1 to the cart (scan again = +1).
+  void _onSearchSubmitted(String raw) {
+    final code = raw.trim();
+    if (code.isNotEmpty) {
+      final matches = _products
+          .where((p) => (p['Barcode'] ?? '').toString().trim() == code)
+          .toList();
+
+      if (matches.isNotEmpty) {
+        _addToCart(matches.first);
+        _searchController.clear();
+        _applySearch();
+      } else if (_filteredProducts.isEmpty) {
+        _msg('No product found for "$code"', color: Colors.orange);
+      }
+    }
+    // Keep the cursor in the box, ready for the next scan
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _scanFocus.requestFocus());
   }
 
   // ------------------------------------------------------------ cart actions
@@ -281,9 +305,12 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
           padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
           child: TextField(
             controller: _searchController,
+            focusNode: _scanFocus,
+            autofocus: true,
             onChanged: (_) => _applySearch(),
+            onSubmitted: _onSearchSubmitted,
             decoration: InputDecoration(
-              hintText: 'Search product or category...',
+              hintText: 'Search product or scan barcode...',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
@@ -348,7 +375,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                               Padding(
                                 padding: const EdgeInsets.only(right: 6),
                                 child: Text(
-                                  fmtMoney(normal),
+                                  normal.toStringAsFixed(2),
                                   style: const TextStyle(
                                     color: Colors.grey,
                                     fontSize: 12,
@@ -356,7 +383,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                                   ),
                                 ),
                               ),
-                            Text(fmtRs(price),
+                            Text('Rs. ${price.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold)),
                             const SizedBox(width: 8),
@@ -450,8 +477,8 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                                           fontWeight: FontWeight.w600)),
                                   Text(
                                       line.normalPrice > line.unitPrice
-                                          ? '${fmtRs(line.unitPrice)} each (Normal ${fmtMoney(line.normalPrice)})'
-                                          : '${fmtRs(line.unitPrice)} each',
+                                          ? 'Rs. ${line.unitPrice.toStringAsFixed(2)} each (Normal ${line.normalPrice.toStringAsFixed(2)})'
+                                          : 'Rs. ${line.unitPrice.toStringAsFixed(2)} each',
                                       style: const TextStyle(
                                           fontSize: 12, color: Colors.grey)),
                                 ],
@@ -487,7 +514,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                             ),
                             SizedBox(
                               width: 80,
-                              child: Text(fmtMoney(line.subTotal),
+                              child: Text(line.subTotal.toStringAsFixed(2),
                                   textAlign: TextAlign.right,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold)),
@@ -548,7 +575,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                               decimal: true),
                           decoration: InputDecoration(
                               isDense: true,
-                              hintText: fmtMoney(_total)),
+                              hintText: _total.toStringAsFixed(2)),
                         ),
                       ),
                     ],
@@ -592,7 +619,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: style),
-        Text(fmtRs(value), style: style),
+        Text('Rs. ${value.toStringAsFixed(2)}', style: style),
       ],
     );
   }
@@ -613,7 +640,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
             title: Text(
                 'Invoice #${sale['BillID']} - ${sale['CustomerName'] ?? 'Cash Customer'}'),
             subtitle: Text(
-                'Date: ${sale['BillDate']} | ${sale['PaymentType']} | Total: ${fmtRs(sale['TotalAmount'] as num)}'),
+                'Date: ${sale['BillDate']} | ${sale['PaymentType']} | Total: Rs. ${(sale['TotalAmount'] as num).toStringAsFixed(2)}'),
             trailing: IconButton(
               icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
               tooltip: 'Save as PDF',

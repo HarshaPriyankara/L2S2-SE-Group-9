@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String _dbFileName = 'easybill.db';
-  static const int _dbVersion = 5; // 4 -> 5 (Store.AutoLogoutMinutes)
+  static const int _dbVersion = 6; // 5 -> 6 (Products.Barcode)
 
   DatabaseHelper._init();
 
@@ -84,6 +84,7 @@ class DatabaseHelper {
         SupplierPrice REAL DEFAULT 0.00 CHECK (SupplierPrice >= 0),
         NormalPrice REAL DEFAULT 0.00 CHECK (NormalPrice >= 0),
         OurPrice REAL DEFAULT 0.00 CHECK (OurPrice >= 0),
+        Barcode TEXT,
         FOREIGN KEY (CategoryID) REFERENCES Categories(CategoryID) ON DELETE SET NULL,
         FOREIGN KEY (SupplierID) REFERENCES Suppliers(SupplierID) ON DELETE SET NULL
       )
@@ -135,6 +136,7 @@ class DatabaseHelper {
       )
     ''');
 
+    await _createBarcodeIndex(db);
     await _seedDefaultData(db);
   }
 
@@ -165,6 +167,14 @@ class DatabaseHelper {
     ''');
   }
 
+  // One barcode = one product (empty barcodes are stored as NULL)
+  Future<void> _createBarcodeIndex(Database db) async {
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode
+      ON Products(Barcode) WHERE Barcode IS NOT NULL
+    ''');
+  }
+
   // Already install karapu app walata (version 1 -> 2)
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
@@ -184,6 +194,11 @@ class DatabaseHelper {
       // Auto logout after N idle minutes (0 = off)
       await db.execute(
           'ALTER TABLE Store ADD COLUMN AutoLogoutMinutes INTEGER DEFAULT 10');
+    }
+    if (oldVersion < 6) {
+      // Barcode scanner support
+      await db.execute('ALTER TABLE Products ADD COLUMN Barcode TEXT');
+      await _createBarcodeIndex(db);
     }
   }
 
@@ -370,6 +385,18 @@ class DatabaseHelper {
     ''');
   }
 
+  // Find a product by its barcode (null if none)
+  Future<Map<String, dynamic>?> getProductByBarcode(String barcode) async {
+    final db = await instance.database;
+    final rows = await db.query(
+      'Products',
+      where: 'Barcode = ?',
+      whereArgs: [barcode],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : rows.first;
+  }
+
   // 2. Insert new Product
   Future<int> insertProduct(Map<String, dynamic> row) async {
     final db = await instance.database;
@@ -392,6 +419,7 @@ class DatabaseHelper {
         'SupplierPrice': row['SupplierPrice'],
         'NormalPrice': row['NormalPrice'],
         'OurPrice': row['OurPrice'],
+        'Barcode': row['Barcode'],
       },
       where: 'ProductID = ?',
       whereArgs: [id],
