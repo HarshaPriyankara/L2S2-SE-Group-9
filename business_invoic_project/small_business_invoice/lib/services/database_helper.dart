@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -5,11 +6,14 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
+  static const String _dbFileName = 'easybill.db';
+  static const int _dbVersion = 5; // 4 -> 5 (Store.AutoLogoutMinutes)
+
   DatabaseHelper._init();
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('easybill.db');
+    _database = await _initDB(_dbFileName);
     return _database!;
   }
 
@@ -19,7 +23,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4, // 3 -> 4 (Store.StoreContact)
+      version: _dbVersion,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
       onConfigure: (db) async {
@@ -35,7 +39,8 @@ class DatabaseHelper {
         StoreID INTEGER PRIMARY KEY AUTOINCREMENT,
         StoreName TEXT NOT NULL,
         StoreLogo TEXT,
-        StoreContact TEXT
+        StoreContact TEXT,
+        AutoLogoutMinutes INTEGER DEFAULT 10
       )
     ''');
 
@@ -174,6 +179,11 @@ class DatabaseHelper {
     if (oldVersion < 4) {
       // Business telephone number (shown on the invoice PDF)
       await db.execute('ALTER TABLE Store ADD COLUMN StoreContact TEXT');
+    }
+    if (oldVersion < 5) {
+      // Auto logout after N idle minutes (0 = off)
+      await db.execute(
+          'ALTER TABLE Store ADD COLUMN AutoLogoutMinutes INTEGER DEFAULT 10');
     }
   }
 
@@ -511,7 +521,121 @@ class DatabaseHelper {
     final db = await instance.database;
     final rows = await db.query('Store', limit: 1);
     if (rows.isNotEmpty) return rows.first;
-    return {'StoreName': 'EasyBill POS', 'StoreContact': ''};
+    return {
+      'StoreName': 'EasyBill POS',
+      'StoreContact': '',
+      'AutoLogoutMinutes': 10,
+    };
+  }
+
+  // Auto logout idle minutes (0 = off)
+  Future<void> setAutoLogoutMinutes(int minutes) async {
+    final db = await instance.database;
+    final rows = await db.query('Store', limit: 1);
+    if (rows.isEmpty) {
+      await db.insert('Store', {
+        'StoreName': 'EasyBill POS',
+        'AutoLogoutMinutes': minutes,
+      });
+    } else {
+      await db.update('Store', {'AutoLogoutMinutes': minutes},
+          where: 'StoreID = ?', whereArgs: [rows.first['StoreID']]);
+    }
+  }
+
+  // -----------------------------------------------------------------------------------
+  // Backup / Restore
+  Future<String> getDatabaseFilePath() async {
+    final dbPath = await getDatabasesPath();
+    return join(dbPath, _dbFileName);
+  }
+
+  /// Copy the database file to [destPath]
+  Future<void> backupTo(String destPath) async {
+    final db = await instance.database;
+    try {
+      // Make sure everything is written to the main file first
+      await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+    } catch (_) {}
+    await File(await getDatabaseFilePath()).copy(destPath);
+  }
+
+  /// Replace the current database with the backup at [srcPath].
+  /// Returns null when successful, otherwise an error message.
+  Future<String?> restoreFrom(String srcPath) async {
+    final livePath = await getDatabaseFilePath();
+    if (File(srcPath).absolute.path == File(livePath).absolute.path) {
+      return 'Please choose a backup file, not the current database.';
+    }
+
+    // 1. Check that it really is an EasyBill backup
+    Database? test;
+    try {
+      test = await databaseFactory.openDatabase(
+        srcPath,
+        options: OpenDatabaseOptions(readOnly: true),
+      );
+      final v = await test.rawQuery('PRAGMA user_version');
+      final int version = (v.first.values.first as num).toInt();
+      if (version > _dbVersion) {
+        return 'This backup was made by a newer version of the app.';
+      }
+      final rows =
+          await test.rawQuery("SELECT name FROM sqlite_master WHERE type='table'");
+      final names = rows.map((r) => r['name']).toSet();
+      const requiredTables = [
+        'Users', 'Customers', 'Suppliers', 'Products', 'Sales', 'SaleItems'
+      ];
+      if (!requiredTables.every(names.contains)) {
+        return 'This is not a valid EasyBill backup file.';
+      }
+    } catch (_) {
+      return 'This is not a valid EasyBill backup file.';
+    } finally {
+      await test?.close();
+    }
+
+    // 2. Close the live database, keep a safety copy, replace the file
+    String? error;
+    final current = _database;
+    if (current != null) {
+      await current.close();
+      _database = null;
+    }
+    try {
+      final live = File(livePath);
+      if (await live.exists()) {
+        await live.copy('$livePath.before_restore');
+      }
+      await File(srcPath).copy(livePath);
+    } catch (e) {
+      error = 'Restore failed: ${e.toString()}';
+    }
+
+    // 3. Re-open (older backups are upgraded automatically)
+    await instance.database;
+    return error;
+  }
+
+  // -----------------------------------------------------------------------------------
+  // Change own password. Returns false when the current password is wrong.
+  Future<bool> changePassword(
+      int userId, String currentPassword, String newPassword) async {
+    final db = await instance.database;
+    final rows = await db.query(
+      'Users',
+      where: 'UserID = ? AND Password = ?',
+      whereArgs: [userId, currentPassword],
+    );
+    if (rows.isEmpty) return false;
+
+    await db.update(
+      'Users',
+      {'Password': newPassword},
+      where: 'UserID = ?',
+      whereArgs: [userId],
+    );
+    return true;
   }
 
   Future<void> saveStore({required String name, String? contact}) async {

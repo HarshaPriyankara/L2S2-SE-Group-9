@@ -47,7 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _NavItem('invoices', Icons.receipt_long, 'Invoices'),
     _NavItem('expenses', Icons.money_off, 'Expenses', adminOnly: true),
     _NavItem('users', Icons.manage_accounts, 'Users', adminOnly: true),
-    _NavItem('settings', Icons.settings, 'Settings', adminOnly: true),
+    _NavItem('settings', Icons.settings, 'Settings'), // everyone (own password)
   ];
 
   bool get _isAdmin => widget.userRole.trim().toLowerCase() == 'admin';
@@ -290,7 +290,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 'users':
         return const UserScreen();
       case 'settings':
-        return const SettingsScreen();
+        return SettingsScreen(isAdmin: _isAdmin);
       default:
         return const InvoiceScreen();
     }

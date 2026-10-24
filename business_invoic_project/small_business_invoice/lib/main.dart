@@ -5,6 +5,7 @@ import 'package:window_manager/window_manager.dart';
 import 'screens/login_screen.dart';
 import 'services/database_helper.dart';
 import 'widgets/custom_title_bar.dart';
+import 'widgets/idle_watcher.dart';
 
 bool get _isDesktop =>
     Platform.isWindows || Platform.isLinux || Platform.isMacOS;
@@ -52,13 +53,17 @@ class InvoiceExpenseApp extends StatelessWidget {
         colorSchemeSeed: Colors.blue,
       ),
       // Custom title bar on top of every screen (desktop only)
+      // IdleWatcher: auto logout when nobody touches the app for a while
       builder: (context, child) {
-        if (!_isDesktop) return child ?? const SizedBox.shrink();
-        return Column(
-          children: [
-            const CustomTitleBar(),
-            Expanded(child: child ?? const SizedBox.shrink()),
-          ],
+        final Widget page = child ?? const SizedBox.shrink();
+        if (!_isDesktop) return IdleWatcher(child: page);
+        return IdleWatcher(
+          child: Column(
+            children: [
+              const CustomTitleBar(),
+              Expanded(child: page),
+            ],
+          ),
         );
       },
       home: const LoginScreen(),

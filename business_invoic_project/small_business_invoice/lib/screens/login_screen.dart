@@ -36,6 +36,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final user = await DatabaseHelper.instance.loginUser(username, password);
 
+    if (user != null) {
+      // Auto logout setting (Settings page eken wenas karanna puluwan)
+      final store = await DatabaseHelper.instance.getStore();
+      AppSession.autoLogoutMinutes.value =
+          (store['AutoLogoutMinutes'] as num?)?.toInt() ?? 10;
+    }
+
     if (!mounted) return;
     setState(() => _isLoading = false);
 
@@ -44,6 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
       AppSession.userName.value =
           (user['FullName'] ?? user['Username'] ?? '').toString();
       AppSession.userRole.value = (user['UserRole'] ?? 'Cashier').toString();
+      AppSession.userId = (user['UserID'] as num?)?.toInt();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
