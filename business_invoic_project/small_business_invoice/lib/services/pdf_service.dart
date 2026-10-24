@@ -4,7 +4,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'money_format.dart';
 
 class PdfService {
   // 1.0 -> "1", 2.5 -> "2.5"
@@ -19,6 +18,8 @@ class PdfService {
     final sale = saleDetails['sale'];
     final List items = saleDetails['items'];
     final store = saleDetails['store'];
+    final String storeName = (store['StoreName'] ?? '').toString().trim();
+    final String storeContact = (store['StoreContact'] ?? '').toString().trim();
 
     // Normal Total = Total + Discount  (Discount = sum of (Normal - Our) x Qty)
     final double total = (sale['TotalAmount'] as num).toDouble();
@@ -40,9 +41,10 @@ class PdfService {
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       pw.Text(
-                        store['StoreName'] ?? 'EasyBill POS',
+                        storeName.isEmpty ? 'EasyBill POS' : storeName,
                         style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
                       ),
+                      if (storeContact.isNotEmpty) pw.Text('Tel: $storeContact'),
                       pw.Text('Invoice / Receipt'),
                     ],
                   ),
@@ -61,7 +63,8 @@ class PdfService {
               // Customer Details
               pw.Text('Customer Details:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
               pw.Text('Name: ${sale['CustomerName'] ?? 'Cash Customer'}'),
-              if (sale['ContactNumber'] != null) pw.Text('Phone: ${sale['ContactNumber']}'),
+              if ((sale['ContactNumber'] ?? '').toString().trim().isNotEmpty)
+                pw.Text('Phone: ${sale['ContactNumber']}'),
               pw.SizedBox(height: 15),
 
               // Items Table
@@ -83,9 +86,9 @@ class PdfService {
                     (index + 1).toString(),
                     item['ProductName'] ?? 'Product',
                     _fmtQty(item['Quantity']),
-                    fmtMoney(normal),
-                    fmtMoney(unit),
-                    fmtMoney(item['SubTotal'] as num),
+                    normal.toStringAsFixed(2),
+                    unit.toStringAsFixed(2),
+                    (item['SubTotal'] as num).toStringAsFixed(2),
                   ];
                 }),
                 headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
@@ -115,14 +118,14 @@ class PdfService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
-                      pw.Text('Normal Total: ${fmtRs(normalTotal)}'),
-                      pw.Text('Discount: ${fmtRs(discount)}'),
+                      pw.Text('Normal Total: Rs. ${normalTotal.toStringAsFixed(2)}'),
+                      pw.Text('Discount: Rs. ${discount.toStringAsFixed(2)}'),
                       pw.Text(
-                        'Total Amount: ${fmtRs(total)}',
+                        'Total Amount: Rs. ${total.toStringAsFixed(2)}',
                         style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
                       ),
-                      pw.Text('Cash Paid: ${fmtRs(sale['CashReceived'] as num)}'),
-                      pw.Text('Balance: ${fmtRs(sale['Balance'] as num)}'),
+                      pw.Text('Cash Paid: Rs. ${(sale['CashReceived'] as num).toStringAsFixed(2)}'),
+                      pw.Text('Balance: Rs. ${(sale['Balance'] as num).toStringAsFixed(2)}'),
                     ],
                   ),
                 ],

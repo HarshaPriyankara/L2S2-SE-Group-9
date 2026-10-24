@@ -19,7 +19,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3, // 2 -> 3 (SaleItems.NormalPrice)
+      version: 4, // 3 -> 4 (Store.StoreContact)
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
       onConfigure: (db) async {
@@ -34,7 +34,8 @@ class DatabaseHelper {
       CREATE TABLE Store (
         StoreID INTEGER PRIMARY KEY AUTOINCREMENT,
         StoreName TEXT NOT NULL,
-        StoreLogo TEXT
+        StoreLogo TEXT,
+        StoreContact TEXT
       )
     ''');
 
@@ -169,6 +170,10 @@ class DatabaseHelper {
       // Old invoices: normal price = unit price (no discount info was saved)
       await db.execute('ALTER TABLE SaleItems ADD COLUMN NormalPrice REAL');
       await db.execute('UPDATE SaleItems SET NormalPrice = UnitPrice');
+    }
+    if (oldVersion < 4) {
+      // Business telephone number (shown on the invoice PDF)
+      await db.execute('ALTER TABLE Store ADD COLUMN StoreContact TEXT');
     }
   }
 
@@ -491,13 +496,35 @@ class DatabaseHelper {
       WHERE SI.BillID = ?
     ''', [billId]);
 
-    final store = await db.query('Store', limit: 1);
+    final store = await getStore();
 
     return {
       'sale': sales.first,
       'items': items,
-      'store': store.isNotEmpty ? store.first : {'StoreName': 'EasyBill POS'},
+      'store': store,
     };
+  }
+
+  // -----------------------------------------------------------------------------------
+  // Business (Store) settings: name + telephone, used on the invoice PDF
+  Future<Map<String, dynamic>> getStore() async {
+    final db = await instance.database;
+    final rows = await db.query('Store', limit: 1);
+    if (rows.isNotEmpty) return rows.first;
+    return {'StoreName': 'EasyBill POS', 'StoreContact': ''};
+  }
+
+  Future<void> saveStore({required String name, String? contact}) async {
+    final db = await instance.database;
+    final rows = await db.query('Store', limit: 1);
+    final data = {'StoreName': name, 'StoreContact': contact};
+
+    if (rows.isEmpty) {
+      await db.insert('Store', data);
+    } else {
+      await db.update('Store', data,
+          where: 'StoreID = ?', whereArgs: [rows.first['StoreID']]);
+    }
   }
 
   // -----------------------------------------------------------------------------------

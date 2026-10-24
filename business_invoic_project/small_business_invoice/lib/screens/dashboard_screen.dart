@@ -9,6 +9,7 @@ import 'inventory_screen.dart';
 import 'invoice_screen.dart';
 import 'expense_screen.dart';
 import 'login_screen.dart';
+import 'settings_screen.dart';
 import 'dashboard_overview.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -46,6 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _NavItem('invoices', Icons.receipt_long, 'Invoices'),
     _NavItem('expenses', Icons.money_off, 'Expenses', adminOnly: true),
     _NavItem('users', Icons.manage_accounts, 'Users', adminOnly: true),
+    _NavItem('settings', Icons.settings, 'Settings', adminOnly: true),
   ];
 
   bool get _isAdmin => widget.userRole.trim().toLowerCase() == 'admin';
@@ -287,6 +289,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return ExpenseScreen(openAddOnStart: _openExpenseForm);
       case 'users':
         return const UserScreen();
+      case 'settings':
+        return const SettingsScreen();
       default:
         return const InvoiceScreen();
     }
