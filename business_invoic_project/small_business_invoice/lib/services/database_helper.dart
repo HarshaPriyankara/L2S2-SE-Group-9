@@ -1,0 +1,900 @@
+import 'dart:io';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+
+class DatabaseHelper {
+  static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
+
+  static const String _dbFileName = 'easybill.db';
+  static const int _dbVersion = 7; // 6 -> 7 (invoice / POS settings columns)
+
+  DatabaseHelper._init();
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    final db = await _initDB(_dbFileName);
+    await _ensureSchema(db);
+    _database = db;
+    return db;
+  }
+
+  // Safety net: add any column that is still missing.
+  // (sqflite does NOT run onUpgrade again when the database is already open,
+  //  e.g. after a Flutter "hot restart", so a new column could be missing.)
+  Future<void> _ensureColumn(
+      Database db, String table, String column, String type) async {
+    final info = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = info.any((row) => row['name'] == column);
+    if (!exists) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
+    }
+  }
+
+  Future<void> _ensureSchema(Database db) async {
+    const storeColumns = {
+      'StoreContact': 'TEXT',
+      'AutoLogoutMinutes': 'INTEGER DEFAULT 10',
+      'StoreAddress': 'TEXT',
+      'StoreEmail': 'TEXT',
+      'FooterMessage': 'TEXT',
+      'CurrencySymbol': 'TEXT',
+      'InvoicePrefix': 'TEXT',
+      'ReceiptSize': 'TEXT',
+      'LowStockLimit': 'INTEGER',
+      'AutoPrint': 'INTEGER',
+    };
+    for (final e in storeColumns.entries) {
+      await _ensureColumn(db, 'Store', e.key, e.value);
+    }
+    await _ensureColumn(db, 'Products', 'Barcode', 'TEXT');
+    await _createBarcodeIndex(db);
+  }
+
+  Future<Database> _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
+
+    return await openDatabase(
+      path,
+      version: _dbVersion,
+      onCreate: _createDB,
+      onUpgrade: _upgradeDB,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
+    );
+  }
+
+  Future<void> _createDB(Database db, int version) async {
+    // 1. Store Table
+    await db.execute('''
+      CREATE TABLE Store (
+        StoreID INTEGER PRIMARY KEY AUTOINCREMENT,
+        StoreName TEXT NOT NULL,
+        StoreLogo TEXT,
+        StoreContact TEXT,
+        AutoLogoutMinutes INTEGER DEFAULT 10,
+        StoreAddress TEXT,
+        StoreEmail TEXT,
+        FooterMessage TEXT,
+        CurrencySymbol TEXT,
+        InvoicePrefix TEXT,
+        ReceiptSize TEXT,
+        LowStockLimit INTEGER,
+        AutoPrint INTEGER
+      )
+    ''');
+
+    // 2. Categories Table
+    await db.execute('''
+      CREATE TABLE Categories (
+        CategoryID INTEGER PRIMARY KEY AUTOINCREMENT,
+        CategoryName TEXT UNIQUE NOT NULL
+      )
+    ''');
+
+    // 3. Suppliers Table
+    await db.execute('''
+      CREATE TABLE Suppliers (
+        SupplierID INTEGER PRIMARY KEY AUTOINCREMENT,
+        SupplierName TEXT NOT NULL,
+        SupplierCompany TEXT,
+        ContactNumber TEXT
+      )
+    ''');
+
+    // 4. Customers Table
+    await db.execute('''
+      CREATE TABLE Customers (
+        CustomerID INTEGER PRIMARY KEY AUTOINCREMENT,
+        CustomerName TEXT NOT NULL,
+        Email TEXT,
+        ContactNumber TEXT UNIQUE
+      )
+    ''');
+
+    // 5. Products Table
+    await db.execute('''
+      CREATE TABLE Products (
+        ProductID INTEGER PRIMARY KEY AUTOINCREMENT,
+        ProductName TEXT NOT NULL,
+        CategoryID INTEGER,
+        SupplierID INTEGER,
+        StockQuantity REAL DEFAULT 0,
+        MinimumStock REAL DEFAULT 0,
+        SupplierPrice REAL DEFAULT 0.00 CHECK (SupplierPrice >= 0),
+        NormalPrice REAL DEFAULT 0.00 CHECK (NormalPrice >= 0),
+        OurPrice REAL DEFAULT 0.00 CHECK (OurPrice >= 0),
+        Barcode TEXT,
+        FOREIGN KEY (CategoryID) REFERENCES Categories(CategoryID) ON DELETE SET NULL,
+        FOREIGN KEY (SupplierID) REFERENCES Suppliers(SupplierID) ON DELETE SET NULL
+      )
+    ''');
+
+    // 6. Sales Table
+    await db.execute('''
+      CREATE TABLE Sales (
+        BillID INTEGER PRIMARY KEY AUTOINCREMENT,
+        BillDate TEXT DEFAULT CURRENT_TIMESTAMP,
+        CustomerID INTEGER,
+        TotalAmount REAL DEFAULT 0.00,
+        TotalDiscount REAL DEFAULT 0.00,
+        CashReceived REAL DEFAULT 0.00,
+        Balance REAL DEFAULT 0.00,
+        CashierName TEXT,
+        IsVoided INTEGER DEFAULT 0,
+        PaymentType TEXT DEFAULT 'CASH' CHECK(PaymentType IN ('CASH', 'CARD')),
+        FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID) ON DELETE SET NULL
+      )
+    ''');
+
+    // 7. SaleItems Table
+    await db.execute('''
+      CREATE TABLE SaleItems (
+        SaleItemID INTEGER PRIMARY KEY AUTOINCREMENT,
+        BillID INTEGER,
+        ProductID INTEGER,
+        Quantity REAL,
+        NormalPrice REAL,
+        UnitPrice REAL,
+        SubTotal REAL,
+        FOREIGN KEY (BillID) REFERENCES Sales(BillID) ON DELETE CASCADE,
+        FOREIGN KEY (ProductID) REFERENCES Products(ProductID) ON DELETE RESTRICT
+      )
+    ''');
+
+    // 8. Expense Categories + Expenses
+    await _createExpenseTables(db);
+
+    // 9. Users Table
+    await db.execute('''
+      CREATE TABLE Users (
+        UserID INTEGER PRIMARY KEY AUTOINCREMENT,
+        FullName TEXT,
+        Username TEXT UNIQUE,
+        Password TEXT,
+        UserRole TEXT
+      )
+    ''');
+
+    await _createBarcodeIndex(db);
+    await _seedDefaultData(db);
+  }
+
+  Future<void> _createExpenseTables(Database db) async {
+    // Expense Categories Table
+    await db.execute('''
+      CREATE TABLE ExpenseCategories (
+        ExCatID INTEGER PRIMARY KEY AUTOINCREMENT,
+        ExCatName TEXT NOT NULL
+      )
+    ''');
+
+    // Expenses Table
+    await db.execute('''
+      CREATE TABLE Expenses (
+        ExID INTEGER PRIMARY KEY AUTOINCREMENT,
+        ExpenseDate TEXT,
+        Amount REAL DEFAULT 0.00,
+        PaymentType TEXT DEFAULT 'CASH' CHECK(PaymentType IN ('CASH','CARD','BANK_TRANSFER','CHEQUE')),
+        Notes TEXT,
+        CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
+        UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
+        SupplierID INTEGER,
+        ExCatID INTEGER,
+        FOREIGN KEY (SupplierID) REFERENCES Suppliers(SupplierID) ON DELETE SET NULL,
+        FOREIGN KEY (ExCatID) REFERENCES ExpenseCategories(ExCatID) ON DELETE SET NULL
+      )
+    ''');
+  }
+
+  // One barcode = one product (empty barcodes are stored as NULL)
+  Future<void> _createBarcodeIndex(Database db) async {
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode
+      ON Products(Barcode) WHERE Barcode IS NOT NULL
+    ''');
+  }
+
+  // Already install karapu app walata (version 1 -> 2)
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('DROP TABLE IF EXISTS Expenses');
+      await _createExpenseTables(db);
+    }
+    if (oldVersion < 3) {
+      // Old invoices: normal price = unit price (no discount info was saved)
+      await db.execute('ALTER TABLE SaleItems ADD COLUMN NormalPrice REAL');
+      await db.execute('UPDATE SaleItems SET NormalPrice = UnitPrice');
+    }
+    if (oldVersion < 4) {
+      // Business telephone number (shown on the invoice PDF)
+      await db.execute('ALTER TABLE Store ADD COLUMN StoreContact TEXT');
+    }
+    if (oldVersion < 5) {
+      // Auto logout after N idle minutes (0 = off)
+      await db.execute(
+          'ALTER TABLE Store ADD COLUMN AutoLogoutMinutes INTEGER DEFAULT 10');
+    }
+    if (oldVersion < 6) {
+      // Barcode scanner support
+      await db.execute('ALTER TABLE Products ADD COLUMN Barcode TEXT');
+      await _createBarcodeIndex(db);
+    }
+    if (oldVersion < 7) {
+      // Invoice / receipt / POS settings (Settings page)
+      const cols = {
+        'StoreAddress': 'TEXT',
+        'StoreEmail': 'TEXT',
+        'FooterMessage': 'TEXT',
+        'CurrencySymbol': 'TEXT',
+        'InvoicePrefix': 'TEXT',
+        'ReceiptSize': 'TEXT',
+        'LowStockLimit': 'INTEGER',
+        'AutoPrint': 'INTEGER',
+      };
+      for (final e in cols.entries) {
+        await db.execute('ALTER TABLE Store ADD COLUMN ${e.key} ${e.value}');
+      }
+    }
+  }
+
+  Future<void> _seedDefaultData(Database db) async {
+    // Default Users
+    await db.rawInsert('''
+      INSERT OR IGNORE INTO Users (UserID, FullName, Username, Password, UserRole) 
+      VALUES (1, 'Default Admin', 'Admin', '123', 'Admin')
+    ''');
+    await db.rawInsert('''
+      INSERT OR IGNORE INTO Users (UserID, FullName, Username, Password, UserRole) 
+      VALUES (2, 'Default Cashier', 'Cashier', '123', 'Cashier')
+    ''');
+
+    // Default Category
+    await db.rawInsert('''
+      INSERT OR IGNORE INTO Categories (CategoryID, CategoryName) 
+      VALUES (1, 'Default Category')
+    ''');
+
+    // Default Supplier
+    await db.rawInsert('''
+      INSERT OR IGNORE INTO Suppliers (SupplierID, SupplierName, SupplierCompany, ContactNumber) 
+      VALUES (1, 'Default Supplier', 'Default Company', '')
+    ''');
+
+    // Default Customer
+    await db.rawInsert('''
+      INSERT OR IGNORE INTO Customers (CustomerID, CustomerName, ContactNumber) 
+      VALUES (1, 'Default Customer', '')
+    ''');
+
+    // Default Expense Category
+    await db.rawInsert('''
+      INSERT OR IGNORE INTO ExpenseCategories (ExCatID, ExCatName) 
+      VALUES (1, 'Default Expense')
+    ''');
+  }
+
+  Future<void> close() async {
+    final db = await instance.database;
+    db.close();
+  }
+
+  Future<Map<String, dynamic>?> loginUser(String username, String password) async {
+    final db = await instance.database;
+
+    final result = await db.query(
+      'Users',
+      where: 'Username = ? AND Password = ?',
+      whereArgs: [username, password],
+    );
+
+    if (result.isNotEmpty) {
+      return result.first;
+    } else {
+      return null;
+    }
+  }
+
+  //-----------------------------------------------------------------------------------
+  // Customer CRUD Operations
+  // 1.Get all customers
+  Future<List<Map<String, dynamic>>> getCustomers() async {
+    final db = await instance.database;
+    return await db.query('Customers', orderBy: 'CustomerID DESC');
+  }
+
+  // 2.Add new customer
+  Future<int> insertCustomer(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('Customers', row);
+  }
+
+  // 3. Customer Update
+  Future<int> updateCustomer(Map<String, dynamic> row) async {
+    final db = await instance.database;
+
+    return await db.update(
+      'Customers',
+      {
+        'CustomerName': row['CustomerName'],
+        'Email': row['Email'],
+        'ContactNumber': row['ContactNumber'],
+      },
+      where: 'CustomerID = ?',
+      whereArgs: [row['CustomerID']],
+    );
+  }
+
+  // 4. Customer Delete
+  Future<int> deleteCustomer(int id) async {
+    if (id == 1) return 0; // Default customer protect
+    final db = await instance.database;
+    return await db.delete('Customers', where: 'CustomerID = ?', whereArgs: [id]);
+  }
+
+  //-----------------------------------------------------------------------------------
+  //User CRUD Operations
+  // 1. Get all Users
+  Future<List<Map<String, dynamic>>> getUsers() async {
+    final db = await instance.database;
+    return await db.query('Users', orderBy: 'UserID DESC');
+  }
+
+  // 2. Insert new User
+  Future<int> insertUser(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('Users', row);
+  }
+
+  // 3. Update User
+  Future<int> updateUser(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    final String id = row['UserID'].toString();
+
+    return await db.update(
+      'Users',
+      {
+        'FullName': row['FullName']?.toString(),
+        'Username': row['Username']?.toString(),
+        'Password': row['Password']?.toString(),
+        'UserRole': row['UserRole']?.toString(),
+      },
+      where: 'UserID = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // 4. Delete User
+  Future<int> deleteUser(int id) async {
+    if (id == 1 || id == 2) return 0; // Default users protect
+    final db = await instance.database;
+    return await db.delete('Users', where: 'UserID = ?', whereArgs: [id.toString()]);
+  }
+
+  //-----------------------------------------------------------------------------------
+  // Supplier CRUD Operations
+  // 1. Get all suppliers
+  Future<List<Map<String, dynamic>>> getSuppliers() async {
+    final db = await instance.database;
+    return await db.query('Suppliers', orderBy: 'SupplierID DESC');
+  }
+
+  // 2. Insert new supplier
+  Future<int> insertSupplier(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('Suppliers', row);
+  }
+
+  // 3. Update supplier
+  Future<int> updateSupplier(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.update(
+      'Suppliers',
+      {
+        'SupplierName': row['SupplierName'],
+        'SupplierCompany': row['SupplierCompany'],
+        'ContactNumber': row['ContactNumber'],
+      },
+      where: 'SupplierID = ?',
+      whereArgs: [row['SupplierID']],
+    );
+  }
+
+  // 4. Delete supplier
+  Future<int> deleteSupplier(int id) async {
+    if (id == 1) return 0; // Default supplier protect
+    final db = await instance.database;
+    return await db.delete('Suppliers', where: 'SupplierID = ?', whereArgs: [id]);
+  }
+
+  //-----------------------------------------------------------------------------------
+  // Product CRUD Operations
+  // 1. Get all Products with Category & Supplier details
+  Future<List<Map<String, dynamic>>> getProducts() async {
+    final db = await instance.database;
+    return await db.rawQuery('''
+      SELECT P.*, C.CategoryName, S.SupplierName
+      FROM Products P
+      LEFT JOIN Categories C ON P.CategoryID = C.CategoryID
+      LEFT JOIN Suppliers S ON P.SupplierID = S.SupplierID
+      ORDER BY P.ProductID DESC
+    ''');
+  }
+
+  // Find a product by its barcode (null if none)
+  Future<Map<String, dynamic>?> getProductByBarcode(String barcode) async {
+    final db = await instance.database;
+    final rows = await db.query(
+      'Products',
+      where: 'Barcode = ?',
+      whereArgs: [barcode],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  // 2. Insert new Product
+  Future<int> insertProduct(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('Products', row);
+  }
+
+  // 3. Update Product
+  Future<int> updateProduct(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    final String id = row['ProductID'].toString();
+
+    return await db.update(
+      'Products',
+      {
+        'ProductName': row['ProductName']?.toString(),
+        'CategoryID': row['CategoryID'],
+        'SupplierID': row['SupplierID'],
+        'StockQuantity': row['StockQuantity'],
+        'MinimumStock': row['MinimumStock'],
+        'SupplierPrice': row['SupplierPrice'],
+        'NormalPrice': row['NormalPrice'],
+        'OurPrice': row['OurPrice'],
+        'Barcode': row['Barcode'],
+      },
+      where: 'ProductID = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // 4. Delete Product
+  Future<int> deleteProduct(int id) async {
+    final db = await instance.database;
+    return await db.delete('Products', where: 'ProductID = ?', whereArgs: [id.toString()]);
+  }
+
+  // 5. Get Categories for Dropdown
+  Future<List<Map<String, dynamic>>> getCategories() async {
+    final db = await instance.database;
+    return await db.query('Categories', orderBy: 'CategoryName ASC');
+  }
+
+  // 6. Add new Category
+  Future<int> insertCategory(String name) async {
+    final db = await instance.database;
+    return await db.insert('Categories', {'CategoryName': name});
+  }
+
+  // 7. Delete Category (default category protect)
+  Future<int> deleteCategory(int id) async {
+    if (id == 1) return 0;
+    final db = await instance.database;
+    return await db.delete('Categories', where: 'CategoryID = ?', whereArgs: [id]);
+  }
+
+  // 8. Adjust stock (+ add / - remove)
+  Future<int> adjustStock(int id, double qty) async {
+    final db = await instance.database;
+    return await db.rawUpdate(
+      'UPDATE Products SET StockQuantity = StockQuantity + ? WHERE ProductID = ?',
+      [qty, id],
+    );
+  }
+
+  // -----------------------------------------------------------------------------------
+  // Invoice Operations
+
+  // 1. add new Invoice and reduce stock from inventory
+  Future<int> insertSale(Map<String, dynamic> saleData, List<Map<String, dynamic>> items) async {
+    final db = await instance.database;
+    int billId = 0;
+
+    await db.transaction((txn) async {
+      // stock check (race / negative stock protect)
+      for (final item in items) {
+        final r = await txn.rawQuery(
+          'SELECT StockQuantity FROM Products WHERE ProductID = ?',
+          [item['ProductID']],
+        );
+        final stock = (r.first['StockQuantity'] as num?)?.toDouble() ?? 0;
+        if (stock < (item['Quantity'] as num).toDouble()) {
+          throw Exception('Not enough stock for ${item['ProductName']}');
+        }
+      }
+
+      billId = await txn.insert('Sales', saleData);
+
+      for (final item in items) {
+        await txn.insert('SaleItems', {
+          'BillID': billId,
+          'ProductID': item['ProductID'],
+          'Quantity': item['Quantity'],
+          'NormalPrice': item['NormalPrice'],
+          'UnitPrice': item['UnitPrice'],
+          'SubTotal': item['SubTotal'],
+        });
+
+        await txn.rawUpdate(
+          'UPDATE Products SET StockQuantity = StockQuantity - ? WHERE ProductID = ?',
+          [item['Quantity'], item['ProductID']],
+        );
+      }
+    });
+
+    return billId;
+  }
+
+  // 2. get all sales
+  Future<List<Map<String, dynamic>>> getSales() async {
+    final db = await instance.database;
+    return await db.rawQuery('''
+      SELECT S.*, C.CustomerName 
+      FROM Sales S
+      LEFT JOIN Customers C ON S.CustomerID = C.CustomerID
+      ORDER BY S.BillID DESC
+    ''');
+  }
+
+  // 3. get sale details for PDF generation
+  Future<Map<String, dynamic>?> getSaleDetails(int billId) async {
+    final db = await instance.database;
+
+    final sales = await db.rawQuery('''
+      SELECT S.*, C.CustomerName, C.ContactNumber, C.Email
+      FROM Sales S
+      LEFT JOIN Customers C ON S.CustomerID = C.CustomerID
+      WHERE S.BillID = ?
+    ''', [billId]);
+
+    if (sales.isEmpty) return null;
+
+    final items = await db.rawQuery('''
+      SELECT SI.*, P.ProductName
+      FROM SaleItems SI
+      LEFT JOIN Products P ON SI.ProductID = P.ProductID
+      WHERE SI.BillID = ?
+    ''', [billId]);
+
+    final store = await getStore();
+
+    return {
+      'sale': sales.first,
+      'items': items,
+      'store': store,
+    };
+  }
+
+  // -----------------------------------------------------------------------------------
+  // Business (Store) + invoice / POS settings.
+  // A NULL column falls back to the default below (an empty string is kept,
+  // e.g. an empty footer message = "no footer").
+  static const Map<String, dynamic> _storeDefaults = {
+    'StoreName': 'EasyBill POS',
+    'StoreContact': '',
+    'StoreAddress': '',
+    'StoreEmail': '',
+    'StoreLogo': null, // base64 of a PNG / JPG
+    'FooterMessage': 'Thank you for your business!',
+    'CurrencySymbol': 'Rs.',
+    'InvoicePrefix': 'INV-',
+    'ReceiptSize': 'A4', // 'A4' or '80mm'
+    'LowStockLimit': 5,
+    'AutoLogoutMinutes': 10, // 0 = off
+    'AutoPrint': 0, // 1 = open print preview after every sale
+  };
+
+  Future<Map<String, dynamic>> getStore() async {
+    final db = await instance.database;
+    final rows = await db.query('Store', limit: 1);
+
+    final result = Map<String, dynamic>.from(_storeDefaults);
+    if (rows.isNotEmpty) {
+      rows.first.forEach((key, value) {
+        if (value != null) result[key] = value;
+      });
+    }
+    return result;
+  }
+
+  /// Save one or more Store columns (creates the row if it does not exist)
+  Future<void> saveStoreFields(Map<String, Object?> values) async {
+    final db = await instance.database;
+    final rows = await db.query('Store', limit: 1);
+
+    if (rows.isEmpty) {
+      await db.insert('Store', {'StoreName': 'EasyBill POS', ...values});
+    } else {
+      await db.update('Store', values,
+          where: 'StoreID = ?', whereArgs: [rows.first['StoreID']]);
+    }
+  }
+
+  // Auto logout idle minutes (0 = off)
+  Future<void> setAutoLogoutMinutes(int minutes) =>
+      saveStoreFields({'AutoLogoutMinutes': minutes});
+
+  // -----------------------------------------------------------------------------------
+  // Backup / Restore
+  Future<String> getDatabaseFilePath() async {
+    final dbPath = await getDatabasesPath();
+    return join(dbPath, _dbFileName);
+  }
+
+  /// Copy the database file to [destPath]
+  Future<void> backupTo(String destPath) async {
+    final db = await instance.database;
+    try {
+      // Make sure everything is written to the main file first
+      await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+    } catch (_) {}
+    await File(await getDatabaseFilePath()).copy(destPath);
+  }
+
+  /// Replace the current database with the backup at [srcPath].
+  /// Returns null when successful, otherwise an error message.
+  Future<String?> restoreFrom(String srcPath) async {
+    final livePath = await getDatabaseFilePath();
+    if (File(srcPath).absolute.path == File(livePath).absolute.path) {
+      return 'Please choose a backup file, not the current database.';
+    }
+
+    // 1. Check that it really is an EasyBill backup
+    Database? test;
+    try {
+      test = await databaseFactory.openDatabase(
+        srcPath,
+        options: OpenDatabaseOptions(readOnly: true),
+      );
+      final v = await test.rawQuery('PRAGMA user_version');
+      final int version = (v.first.values.first as num).toInt();
+      if (version > _dbVersion) {
+        return 'This backup was made by a newer version of the app.';
+      }
+      final rows =
+          await test.rawQuery("SELECT name FROM sqlite_master WHERE type='table'");
+      final names = rows.map((r) => r['name']).toSet();
+      const requiredTables = [
+        'Users', 'Customers', 'Suppliers', 'Products', 'Sales', 'SaleItems'
+      ];
+      if (!requiredTables.every(names.contains)) {
+        return 'This is not a valid EasyBill backup file.';
+      }
+    } catch (_) {
+      return 'This is not a valid EasyBill backup file.';
+    } finally {
+      await test?.close();
+    }
+
+    // 2. Close the live database, keep a safety copy, replace the file
+    String? error;
+    final current = _database;
+    if (current != null) {
+      await current.close();
+      _database = null;
+    }
+    try {
+      final live = File(livePath);
+      if (await live.exists()) {
+        await live.copy('$livePath.before_restore');
+      }
+      await File(srcPath).copy(livePath);
+    } catch (e) {
+      error = 'Restore failed: ${e.toString()}';
+    }
+
+    // 3. Re-open (older backups are upgraded automatically)
+    await instance.database;
+    return error;
+  }
+
+  // -----------------------------------------------------------------------------------
+  // Change own password. Returns false when the current password is wrong.
+  Future<bool> changePassword(
+      int userId, String currentPassword, String newPassword) async {
+    final db = await instance.database;
+    final rows = await db.query(
+      'Users',
+      where: 'UserID = ? AND Password = ?',
+      whereArgs: [userId, currentPassword],
+    );
+    if (rows.isEmpty) return false;
+
+    await db.update(
+      'Users',
+      {'Password': newPassword},
+      where: 'UserID = ?',
+      whereArgs: [userId],
+    );
+    return true;
+  }
+
+  // -----------------------------------------------------------------------------------
+  // Expense Category CRUD Operations
+  Future<List<Map<String, dynamic>>> getExpenseCategories() async {
+    final db = await instance.database;
+    return await db.query('ExpenseCategories', orderBy: 'ExCatName ASC');
+  }
+
+  Future<int> insertExpenseCategory(String name) async {
+    final db = await instance.database;
+    return await db.insert('ExpenseCategories', {'ExCatName': name});
+  }
+
+  Future<int> deleteExpenseCategory(int id) async {
+    if (id == 1) return 0; // Default category protect
+    final db = await instance.database;
+    return await db.delete('ExpenseCategories', where: 'ExCatID = ?', whereArgs: [id]);
+  }
+
+  // -----------------------------------------------------------------------------------
+  // Expense CRUD Operations
+  Future<List<Map<String, dynamic>>> getExpenses() async {
+    final db = await instance.database;
+    return await db.rawQuery('''
+      SELECT E.*, EC.ExCatName, S.SupplierName, S.SupplierCompany
+      FROM Expenses E
+      LEFT JOIN ExpenseCategories EC ON E.ExCatID = EC.ExCatID
+      LEFT JOIN Suppliers S ON E.SupplierID = S.SupplierID
+      ORDER BY E.ExpenseDate DESC, E.ExID DESC
+    ''');
+  }
+
+  Future<int> insertExpense(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('Expenses', row);
+  }
+
+  Future<int> updateExpense(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.update(
+      'Expenses',
+      {
+        'Amount': row['Amount'],
+        'PaymentType': row['PaymentType'],
+        'Notes': row['Notes'],
+        'SupplierID': row['SupplierID'],
+        'ExCatID': row['ExCatID'],
+        'UpdatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'ExID = ?',
+      whereArgs: [row['ExID']],
+    );
+  }
+
+  Future<int> deleteExpense(int id) async {
+    final db = await instance.database;
+    return await db.delete('Expenses', where: 'ExID = ?', whereArgs: [id]);
+  }
+
+  // -----------------------------------------------------------------------------------
+  // Dashboard Operations
+  // start / end = 'yyyy-MM-dd' (inclusive). Both null = all time.
+  // Voided invoices are ignored. BillDate is stored in UTC, so convert to local time.
+
+  // 1. Income per day  ->  {'2026-10-14': 12500.0, ...}
+  Future<Map<String, double>> getDailyIncome({String? start, String? end}) async {
+    final db = await instance.database;
+    final args = <Object>[];
+    var where = 'IFNULL(IsVoided, 0) = 0';
+    if (start != null && end != null) {
+      where += " AND date(BillDate, 'localtime') BETWEEN ? AND ?";
+      args.addAll([start, end]);
+    }
+
+    final rows = await db.rawQuery('''
+      SELECT date(BillDate, 'localtime') AS Day, SUM(TotalAmount) AS Total
+      FROM Sales
+      WHERE $where
+      GROUP BY Day
+    ''', args);
+
+    return {
+      for (final r in rows)
+        if (r['Day'] != null)
+          r['Day'] as String: (r['Total'] as num?)?.toDouble() ?? 0.0,
+    };
+  }
+
+  // 2. Expenses per day
+  Future<Map<String, double>> getDailyExpenses({String? start, String? end}) async {
+    final db = await instance.database;
+    final args = <Object>[];
+    var where = 'ExpenseDate IS NOT NULL';
+    if (start != null && end != null) {
+      where += ' AND substr(ExpenseDate, 1, 10) BETWEEN ? AND ?';
+      args.addAll([start, end]);
+    }
+
+    final rows = await db.rawQuery('''
+      SELECT substr(ExpenseDate, 1, 10) AS Day, SUM(Amount) AS Total
+      FROM Expenses
+      WHERE $where
+      GROUP BY Day
+    ''', args);
+
+    return {
+      for (final r in rows)
+        if (r['Day'] != null)
+          r['Day'] as String: (r['Total'] as num?)?.toDouble() ?? 0.0,
+    };
+  }
+
+  // 3. Sales profit = sum of (selling price - supplier price) x quantity
+  //    (voided invoices are ignored)
+  Future<double> getSalesProfit({String? start, String? end}) async {
+    final db = await instance.database;
+    final args = <Object>[];
+    var where = 'IFNULL(s.IsVoided, 0) = 0';
+    if (start != null && end != null) {
+      where += " AND date(s.BillDate, 'localtime') BETWEEN ? AND ?";
+      args.addAll([start, end]);
+    }
+
+    final rows = await db.rawQuery('''
+      SELECT SUM((si.UnitPrice - IFNULL(p.SupplierPrice, 0)) * si.Quantity) AS Profit
+      FROM SaleItems si
+      JOIN Sales s ON s.BillID = si.BillID
+      LEFT JOIN Products p ON p.ProductID = si.ProductID
+      WHERE $where
+    ''', args);
+
+    return (rows.first['Profit'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  // 4. Outstanding = invoice total that is not yet paid (TotalAmount - CashReceived)
+  Future<double> getOutstandingAmount({String? start, String? end}) async {
+    final db = await instance.database;
+    final args = <Object>[];
+    var where = 'IFNULL(IsVoided, 0) = 0';
+    if (start != null && end != null) {
+      where += " AND date(BillDate, 'localtime') BETWEEN ? AND ?";
+      args.addAll([start, end]);
+    }
+
+    final rows = await db.rawQuery('''
+      SELECT SUM(CASE WHEN TotalAmount - CashReceived > 0.005
+                      THEN TotalAmount - CashReceived ELSE 0 END) AS Total
+      FROM Sales
+      WHERE $where
+    ''', args);
+
+    return (rows.first['Total'] as num?)?.toDouble() ?? 0.0;
+  }
+}
