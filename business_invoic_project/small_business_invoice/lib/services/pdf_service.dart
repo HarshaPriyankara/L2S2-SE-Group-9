@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -21,12 +23,56 @@ class PdfService {
     marginAll: 3 * PdfPageFormat.mm,
   );
 
+  // Loads a TTF font from assets (null if the file is missing).
+  // [optional] fonts are skipped silently when the file does not exist.
+  static Future<pw.Font?> _loadFont(String path, {bool optional = false}) async {
+    try {
+      return pw.Font.ttf(await rootBundle.load(path));
+    } catch (e) {
+      if (!optional) debugPrint('PDF font load failed ($path): $e');
+      return null;
+    }
+  }
+
+  // Unicode fonts so the PDF has no "Helvetica has no Unicode support" warning.
+  // Sinhala fonts are optional: they are used only when the files exist.
+  static Future<pw.ThemeData> _buildTheme() async {
+    final regular = await _loadFont('assests/fonts/NotoSans-Regular.ttf');
+    final bold = await _loadFont('assests/fonts/NotoSans-Bold.ttf');
+    final italic = await _loadFont('assests/fonts/NotoSans-Italic.ttf',
+        optional: true);
+    final boldItalic = await _loadFont('assests/fonts/NotoSans-BoldItalic.ttf',
+        optional: true);
+    final sinhala = await _loadFont('assests/fonts/NotoSansSinhala-Regular.ttf',
+        optional: true);
+    final sinhalaBold = await _loadFont(
+        'assests/fonts/NotoSansSinhala-Bold.ttf',
+        optional: true);
+
+    if (regular == null || bold == null) {
+      debugPrint('PDF: NotoSans fonts missing -> falling back to Helvetica');
+      return pw.ThemeData(); // old behaviour
+    }
+
+    return pw.ThemeData.withFont(
+      base: regular,
+      bold: bold,
+      // No italic font file -> use the normal one (so Helvetica is never used)
+      italic: italic ?? regular,
+      boldItalic: boldItalic ?? bold,
+      fontFallback: [
+        ?sinhala,
+        ?sinhalaBold,
+      ],
+    );
+  }
+
   /// Builds the invoice PDF using the business settings stored in
   /// saleDetails['store'] (name, phone, address, email, logo, footer,
   /// currency, invoice prefix, receipt size).
   static Future<Uint8List> generateInvoicePdf(
       Map<String, dynamic> saleDetails) async {
-    final pdf = pw.Document();
+    final pdf = pw.Document(theme: await _buildTheme());
 
     final sale = saleDetails['sale'];
     final List items = saleDetails['items'];
@@ -145,10 +191,12 @@ class PdfService {
         // Header - Business Info
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          // end = Invoice No / Date sit at the bottom, next to the divider
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
           children: [
             pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              // end = store name block sits at the bottom, next to the divider
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
                 if (logo != null) ...[
                   pw.SizedBox(
