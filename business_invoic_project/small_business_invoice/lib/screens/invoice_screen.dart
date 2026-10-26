@@ -257,6 +257,52 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     }
   }
 
+  // ------------------------------------------------------------ void invoice
+  void _confirmVoid(Map<String, dynamic> sale) {
+    final int billId = sale['BillID'] as int;
+    final String no = AppSession.formatInvoiceNo(billId);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Void Invoice'),
+        content: Text(
+            'Are you sure you want to void invoice $no?\n\n'
+            'The sold items will be returned to stock and the invoice will be '
+            'excluded from the dashboard. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              try {
+                final ok = await DatabaseHelper.instance.voidSale(billId);
+                if (ok) {
+                  _msg('Invoice $no voided. Stock updated.',
+                      color: Colors.green);
+                } else {
+                  _msg('Invoice $no is already voided.',
+                      color: Colors.orange);
+                }
+                await _loadAll(); // refresh history + stock
+              } catch (e) {
+                _msg('Could not void invoice: $e');
+              }
+            },
+            child: const Text('Void'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ------------------------------------------------------------ checkout
   Future<void> _checkout() async {
     if (_cart.isEmpty) return;
@@ -648,11 +694,49 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       itemCount: _sales.length,
       itemBuilder: (context, index) {
         final sale = _sales[index];
+        final bool voided = ((sale['IsVoided'] as num?)?.toInt() ?? 0) == 1;
         return Card(
+          color: voided ? Colors.grey.shade100 : null,
           child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.receipt)),
-            title: Text(
-                'Invoice ${AppSession.formatInvoiceNo(sale['BillID'] as int)} - ${sale['CustomerName'] ?? 'Cash Customer'}'),
+            leading: CircleAvatar(
+              backgroundColor: voided ? Colors.grey.shade400 : null,
+              child: Icon(voided ? Icons.block : Icons.receipt),
+            ),
+            title: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    'Invoice ${AppSession.formatInvoiceNo(sale['BillID'] as int)} - ${sale['CustomerName'] ?? 'Cash Customer'}',
+                    overflow: TextOverflow.ellipsis,
+                    style: voided
+                        ? const TextStyle(
+                            decoration: TextDecoration.lineThrough,
+                            color: Colors.grey,
+                          )
+                        : null,
+                  ),
+                ),
+                if (voided) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'VOIDED',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
             subtitle: Text(
                 'Date: ${sale['BillDate']} | ${sale['PaymentType']} | Total: ${AppSession.currency} ${(sale['TotalAmount'] as num).toStringAsFixed(2)}'),
             trailing: Row(
@@ -676,6 +760,12 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                     if (d != null) await _savePdf(d);
                   },
                 ),
+                if (!voided)
+                  IconButton(
+                    icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
+                    tooltip: 'Void invoice',
+                    onPressed: () => _confirmVoid(sale),
+                  ),
               ],
             ),
           ),

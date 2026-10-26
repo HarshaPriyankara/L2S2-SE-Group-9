@@ -48,6 +48,7 @@ class DatabaseHelper {
       await _ensureColumn(db, 'Store', e.key, e.value);
     }
     await _ensureColumn(db, 'Products', 'Barcode', 'TEXT');
+    await _ensureColumn(db, 'Sales', 'IsVoided', 'INTEGER DEFAULT 0');
     await _createBarcodeIndex(db);
   }
 
@@ -559,6 +560,46 @@ class DatabaseHelper {
     });
 
     return billId;
+  }
+
+  // 1b. Void an invoice: mark it as voided and put the sold quantities back
+  //     into stock. Returns false if the invoice is missing or already voided.
+  Future<bool> voidSale(int billId) async {
+    final db = await instance.database;
+    bool done = false;
+
+    await db.transaction((txn) async {
+      final sale = await txn.query(
+        'Sales',
+        columns: ['IsVoided'],
+        where: 'BillID = ?',
+        whereArgs: [billId],
+      );
+      if (sale.isEmpty) return;
+      if (((sale.first['IsVoided'] as num?)?.toInt() ?? 0) == 1) return;
+
+      final items = await txn.query(
+        'SaleItems',
+        where: 'BillID = ?',
+        whereArgs: [billId],
+      );
+      for (final item in items) {
+        await txn.rawUpdate(
+          'UPDATE Products SET StockQuantity = StockQuantity + ? WHERE ProductID = ?',
+          [item['Quantity'], item['ProductID']],
+        );
+      }
+
+      await txn.update(
+        'Sales',
+        {'IsVoided': 1},
+        where: 'BillID = ?',
+        whereArgs: [billId],
+      );
+      done = true;
+    });
+
+    return done;
   }
 
   // 2. get all sales
