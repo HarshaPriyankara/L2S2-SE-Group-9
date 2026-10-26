@@ -827,6 +827,7 @@ class DatabaseHelper {
     return await db.update(
       'Expenses',
       {
+        'ExpenseDate': row['ExpenseDate'],
         'Amount': row['Amount'],
         'PaymentType': row['PaymentType'],
         'Notes': row['Notes'],

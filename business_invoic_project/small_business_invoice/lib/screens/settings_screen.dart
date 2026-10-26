@@ -334,7 +334,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       content = Image.memory(
         base64Decode(data),
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) =>
+        errorBuilder: (_, _, _) =>
             const Icon(Icons.broken_image, color: Colors.red),
       );
     }
