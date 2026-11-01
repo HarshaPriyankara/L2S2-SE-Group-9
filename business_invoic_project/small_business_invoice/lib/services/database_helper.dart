@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String _dbFileName = 'easybill.db';
-  static const int _dbVersion = 7; // 6 -> 7 (invoice / POS settings columns)
+  static const int _dbVersion = 8; // 7 -> 8 (CR-01: tax / VAT columns)
 
   DatabaseHelper._init();
 
@@ -49,6 +49,10 @@ class DatabaseHelper {
     }
     await _ensureColumn(db, 'Products', 'Barcode', 'TEXT');
     await _ensureColumn(db, 'Sales', 'IsVoided', 'INTEGER DEFAULT 0');
+    // CR-01: tax (VAT)
+    await _ensureColumn(db, 'Store', 'TaxPercent', 'REAL DEFAULT 0');
+    await _ensureColumn(db, 'Sales', 'TaxAmount', 'REAL DEFAULT 0');
+    await _ensureColumn(db, 'Sales', 'TaxPercent', 'REAL DEFAULT 0');
     await _createBarcodeIndex(db);
   }
 
@@ -83,7 +87,8 @@ class DatabaseHelper {
         InvoicePrefix TEXT,
         ReceiptSize TEXT,
         LowStockLimit INTEGER,
-        AutoPrint INTEGER
+        AutoPrint INTEGER,
+        TaxPercent REAL DEFAULT 0
       )
     ''');
 
@@ -141,6 +146,8 @@ class DatabaseHelper {
         CustomerID INTEGER,
         TotalAmount REAL DEFAULT 0.00,
         TotalDiscount REAL DEFAULT 0.00,
+        TaxAmount REAL DEFAULT 0.00,
+        TaxPercent REAL DEFAULT 0.00,
         CashReceived REAL DEFAULT 0.00,
         Balance REAL DEFAULT 0.00,
         CashierName TEXT,
@@ -258,6 +265,12 @@ class DatabaseHelper {
       for (final e in cols.entries) {
         await db.execute('ALTER TABLE Store ADD COLUMN ${e.key} ${e.value}');
       }
+    }
+    if (oldVersion < 8) {
+      // CR-01: configurable tax (VAT). Old invoices keep tax 0.
+      await db.execute('ALTER TABLE Store ADD COLUMN TaxPercent REAL DEFAULT 0');
+      await db.execute('ALTER TABLE Sales ADD COLUMN TaxAmount REAL DEFAULT 0');
+      await db.execute('ALTER TABLE Sales ADD COLUMN TaxPercent REAL DEFAULT 0');
     }
   }
 
@@ -659,6 +672,7 @@ class DatabaseHelper {
     'LowStockLimit': 5,
     'AutoLogoutMinutes': 10, // 0 = off
     'AutoPrint': 0, // 1 = open print preview after every sale
+    'TaxPercent': 0.0, // CR-01: VAT % added to every invoice (0 = no tax)
   };
 
   Future<Map<String, dynamic>> getStore() async {

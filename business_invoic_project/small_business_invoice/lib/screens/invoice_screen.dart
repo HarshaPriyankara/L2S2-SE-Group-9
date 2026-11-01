@@ -83,10 +83,25 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   double get _total => _cart.fold(0.0, (s, l) => s + l.subTotal);
   // Discount = Normal Total - Our Total
   double get _discount => _normalTotal - _total;
+
+  // CR-01: tax (VAT) is applied to the discounted subtotal (_total).
+  // Rounded to 2 decimals so the stored amounts match a manual calculation.
+  double _round2(double v) => (v * 100).roundToDouble() / 100;
+  double get _taxPercent => AppSession.taxPercent;
+  double get _taxAmount => _round2(_total * _taxPercent / 100);
+  // Grand total = subtotal + tax  -> the amount the customer really pays
+  double get _grandTotal => _round2(_total + _taxAmount);
+
   double get _cashReceived => _cashController.text.trim().isEmpty
-      ? _total
+      ? _grandTotal
       : (double.tryParse(_cashController.text.trim()) ?? 0);
-  double get _balance => _paymentType == 'CASH' ? _cashReceived - _total : 0;
+  double get _balance =>
+      _paymentType == 'CASH' ? _cashReceived - _grandTotal : 0;
+
+  // 7.0 -> "7", 7.5 -> "7.5"
+  String _fmtPct(double p) => p == p.roundToDouble()
+      ? p.toInt().toString()
+      : p.toStringAsFixed(2).replaceFirst(RegExp(r'0+$'), '');
 
   void _msg(String text, {Color color = Colors.red}) {
     if (!mounted) return;
@@ -306,7 +321,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   // ------------------------------------------------------------ checkout
   Future<void> _checkout() async {
     if (_cart.isEmpty) return;
-    if (_paymentType == 'CASH' && _cashReceived < _total) {
+    if (_paymentType == 'CASH' && _cashReceived < _grandTotal) {
       _msg('Cash received is less than the total');
       return;
     }
@@ -315,9 +330,11 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     try {
       final saleData = {
         'CustomerID': _customerId,
-        'TotalAmount': _total,
+        'TotalAmount': _grandTotal, // grand total (subtotal + tax)
         'TotalDiscount': _discount,
-        'CashReceived': _paymentType == 'CASH' ? _cashReceived : _total,
+        'TaxAmount': _taxAmount,
+        'TaxPercent': _taxPercent,
+        'CashReceived': _paymentType == 'CASH' ? _cashReceived : _grandTotal,
         'Balance': _balance,
         'PaymentType': _paymentType,
       };
@@ -602,8 +619,14 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                 const SizedBox(height: 8),
                 _totalRow('Discount', _discount,
                     color: _discount > 0 ? Colors.green : null),
+                if (_taxPercent > 0) ...[
+                  const SizedBox(height: 8),
+                  _totalRow('Subtotal', _total),
+                  const SizedBox(height: 8),
+                  _totalRow('Tax (${_fmtPct(_taxPercent)}%)', _taxAmount),
+                ],
                 const Divider(height: 24),
-                _totalRow('TOTAL', _total, big: true),
+                _totalRow('TOTAL', _grandTotal, big: true),
                 const SizedBox(height: 12),
                 SegmentedButton<String>(
                   segments: const [
@@ -635,7 +658,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                               decimal: true),
                           decoration: InputDecoration(
                               isDense: true,
-                              hintText: _total.toStringAsFixed(2)),
+                              hintText: _grandTotal.toStringAsFixed(2)),
                         ),
                       ),
                     ],

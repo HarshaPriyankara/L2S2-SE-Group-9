@@ -16,6 +16,11 @@ class PdfService {
     return d == d.roundToDouble() ? d.toInt().toString() : d.toString();
   }
 
+  // 7.0 -> "7", 7.5 -> "7.5"
+  static String _fmtPct(double p) => p == p.roundToDouble()
+      ? p.toInt().toString()
+      : p.toStringAsFixed(2).replaceFirst(RegExp(r'0+$'), '');
+
   // 80mm thermal roll: 80mm wide, height = content height
   static const PdfPageFormat _roll80 = PdfPageFormat(
     80 * PdfPageFormat.mm,
@@ -104,10 +109,15 @@ class PdfService {
       }
     }
 
-    // Normal Total = Total + Discount  (Discount = sum of (Normal - Our) x Qty)
+    // TotalAmount = grand total (subtotal + tax). Old invoices have tax 0.
+    // Subtotal     = Total - Tax
+    // Normal Total = Subtotal + Discount  (Discount = sum of (Normal - Our) x Qty)
     final double total = (sale['TotalAmount'] as num).toDouble();
     final double discount = (sale['TotalDiscount'] as num).toDouble();
-    final double normalTotal = total + discount;
+    final double taxAmount = (sale['TaxAmount'] as num?)?.toDouble() ?? 0;
+    final double taxPercent = (sale['TaxPercent'] as num?)?.toDouble() ?? 0;
+    final double subtotal = total - taxAmount;
+    final double normalTotal = subtotal + discount;
     final double cash = (sale['CashReceived'] as num).toDouble();
     final double balance = (sale['Balance'] as num).toDouble();
 
@@ -132,6 +142,9 @@ class PdfService {
           items: items,
           normalTotal: normalTotal,
           discount: discount,
+          subtotal: subtotal,
+          taxPercent: taxPercent,
+          taxAmount: taxAmount,
           total: total,
           cash: cash,
           balance: balance,
@@ -155,6 +168,9 @@ class PdfService {
           items: items,
           normalTotal: normalTotal,
           discount: discount,
+          subtotal: subtotal,
+          taxPercent: taxPercent,
+          taxAmount: taxAmount,
           total: total,
           cash: cash,
           balance: balance,
@@ -181,6 +197,9 @@ class PdfService {
     required List items,
     required double normalTotal,
     required double discount,
+    required double subtotal,
+    required double taxPercent,
+    required double taxAmount,
     required double total,
     required double cash,
     required double balance,
@@ -296,8 +315,13 @@ class PdfService {
               children: [
                 pw.Text('Normal Total: $cur ${normalTotal.toStringAsFixed(2)}'),
                 pw.Text('Discount: $cur ${discount.toStringAsFixed(2)}'),
+                if (taxPercent > 0) ...[
+                  pw.Text('Subtotal: $cur ${subtotal.toStringAsFixed(2)}'),
+                  pw.Text(
+                      'Tax (${_fmtPct(taxPercent)}%): $cur ${taxAmount.toStringAsFixed(2)}'),
+                ],
                 pw.Text(
-                  'Total Amount: $cur ${total.toStringAsFixed(2)}',
+                  '${taxPercent > 0 ? 'Grand Total' : 'Total Amount'}: $cur ${total.toStringAsFixed(2)}',
                   style: pw.TextStyle(
                       fontSize: 14, fontWeight: pw.FontWeight.bold),
                 ),
@@ -334,6 +358,9 @@ class PdfService {
     required List items,
     required double normalTotal,
     required double discount,
+    required double subtotal,
+    required double taxPercent,
+    required double taxAmount,
     required double total,
     required double cash,
     required double balance,
@@ -404,6 +431,11 @@ class PdfService {
         // Summary
         line('Normal Total', '$cur ${normalTotal.toStringAsFixed(2)}'),
         line('Discount', '$cur ${discount.toStringAsFixed(2)}'),
+        if (taxPercent > 0) ...[
+          line('Subtotal', '$cur ${subtotal.toStringAsFixed(2)}'),
+          line('Tax (${_fmtPct(taxPercent)}%)',
+              '$cur ${taxAmount.toStringAsFixed(2)}'),
+        ],
         pw.SizedBox(height: 2),
         line('TOTAL', '$cur ${total.toStringAsFixed(2)}',
             style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
