@@ -19,6 +19,9 @@ class AppSession {
   static int lowStockLimit = 5;
   static bool autoPrint = false;
 
+  /// CR-01: tax (VAT) percentage added to every invoice (0 = no tax)
+  static double taxPercent = 0;
+
   /// Dashboard set karanawa; title bar / idle watcher call karanawa
   static VoidCallback? onLogout;
 
@@ -28,6 +31,7 @@ class AppSession {
     invoicePrefix = (store['InvoicePrefix'] ?? 'INV-').toString();
     lowStockLimit = (store['LowStockLimit'] as num?)?.toInt() ?? 5;
     autoPrint = ((store['AutoPrint'] as num?)?.toInt() ?? 0) == 1;
+    taxPercent = (store['TaxPercent'] as num?)?.toDouble() ?? 0;
     autoLogoutMinutes.value = (store['AutoLogoutMinutes'] as num?)?.toInt() ?? 10;
   }
 

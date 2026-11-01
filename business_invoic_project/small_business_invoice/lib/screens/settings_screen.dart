@@ -35,6 +35,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _prefixController = TextEditingController();
   final _currencyController = TextEditingController();
   final _footerController = TextEditingController();
+  final _taxController = TextEditingController(); // CR-01: tax (VAT) %
   String _receiptSize = 'A4'; // 'A4' or '80mm'
 
   // POS & stock
@@ -68,6 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _prefixController.dispose();
     _currencyController.dispose();
     _footerController.dispose();
+    _taxController.dispose();
     _lowStockController.dispose();
     super.dispose();
   }
@@ -90,6 +92,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _prefixController.text = t('InvoicePrefix');
       _currencyController.text = t('CurrencySymbol');
       _footerController.text = t('FooterMessage');
+      final tax = (store['TaxPercent'] as num?)?.toDouble() ?? 0;
+      _taxController.text =
+          tax == tax.roundToDouble() ? tax.toInt().toString() : tax.toString();
       _receiptSize = t('ReceiptSize') == '80mm' ? '80mm' : 'A4';
 
       _lowStockController.text = t('LowStockLimit');
@@ -167,6 +172,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'CurrencySymbol': _currencyController.text.trim(),
         'FooterMessage': _footerController.text.trim(), // empty = no footer
         'ReceiptSize': _receiptSize,
+        'TaxPercent': double.parse(_taxController.text.trim().isEmpty
+            ? '0'
+            : _taxController.text.trim()),
       });
 
   // ---------------- POS & stock ----------------
@@ -334,7 +342,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       content = Image.memory(
         base64Decode(data),
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) =>
+        errorBuilder: (_, _, _) =>
             const Icon(Icons.broken_image, color: Colors.red),
       );
     }
@@ -512,6 +520,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (!RegExp(r'^[\x20-\x7E]{1,6}$').hasMatch(v)) {
                     return 'Use up to 6 English letters or symbols';
                   }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _taxController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Tax (VAT) Percentage',
+                  prefixIcon: Icon(Icons.percent),
+                  suffixText: '%',
+                  hintText: '0',
+                  helperText:
+                      'Added to the discounted subtotal of every new invoice. '
+                      'Enter 0 for no tax. Old invoices are not changed.',
+                  helperMaxLines: 2,
+                  border: OutlineInputBorder(),
+                ),
+                validator: (val) {
+                  final v = (val ?? '').trim();
+                  if (v.isEmpty) return null; // empty = 0
+                  final n = double.tryParse(v);
+                  if (n == null) return 'Enter a valid number';
+                  if (n < 0 || n > 100) return 'Enter a value between 0 and 100';
                   return null;
                 },
               ),

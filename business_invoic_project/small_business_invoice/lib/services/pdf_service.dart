@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -14,6 +16,11 @@ class PdfService {
     return d == d.roundToDouble() ? d.toInt().toString() : d.toString();
   }
 
+  // 7.0 -> "7", 7.5 -> "7.5"
+  static String _fmtPct(double p) => p == p.roundToDouble()
+      ? p.toInt().toString()
+      : p.toStringAsFixed(2).replaceFirst(RegExp(r'0+$'), '');
+
   // 80mm thermal roll: 80mm wide, height = content height
   static const PdfPageFormat _roll80 = PdfPageFormat(
     80 * PdfPageFormat.mm,
@@ -21,12 +28,56 @@ class PdfService {
     marginAll: 3 * PdfPageFormat.mm,
   );
 
+  // Loads a TTF font from assets (null if the file is missing).
+  // [optional] fonts are skipped silently when the file does not exist.
+  static Future<pw.Font?> _loadFont(String path, {bool optional = false}) async {
+    try {
+      return pw.Font.ttf(await rootBundle.load(path));
+    } catch (e) {
+      if (!optional) debugPrint('PDF font load failed ($path): $e');
+      return null;
+    }
+  }
+
+  // Unicode fonts so the PDF has no "Helvetica has no Unicode support" warning.
+  // Sinhala fonts are optional: they are used only when the files exist.
+  static Future<pw.ThemeData> _buildTheme() async {
+    final regular = await _loadFont('assests/fonts/NotoSans-Regular.ttf');
+    final bold = await _loadFont('assests/fonts/NotoSans-Bold.ttf');
+    final italic = await _loadFont('assests/fonts/NotoSans-Italic.ttf',
+        optional: true);
+    final boldItalic = await _loadFont('assests/fonts/NotoSans-BoldItalic.ttf',
+        optional: true);
+    final sinhala = await _loadFont('assests/fonts/NotoSansSinhala-Regular.ttf',
+        optional: true);
+    final sinhalaBold = await _loadFont(
+        'assests/fonts/NotoSansSinhala-Bold.ttf',
+        optional: true);
+
+    if (regular == null || bold == null) {
+      debugPrint('PDF: NotoSans fonts missing -> falling back to Helvetica');
+      return pw.ThemeData(); // old behaviour
+    }
+
+    return pw.ThemeData.withFont(
+      base: regular,
+      bold: bold,
+      // No italic font file -> use the normal one (so Helvetica is never used)
+      italic: italic ?? regular,
+      boldItalic: boldItalic ?? bold,
+      fontFallback: [
+        ?sinhala,
+        ?sinhalaBold,
+      ],
+    );
+  }
+
   /// Builds the invoice PDF using the business settings stored in
   /// saleDetails['store'] (name, phone, address, email, logo, footer,
   /// currency, invoice prefix, receipt size).
   static Future<Uint8List> generateInvoicePdf(
       Map<String, dynamic> saleDetails) async {
-    final pdf = pw.Document();
+    final pdf = pw.Document(theme: await _buildTheme());
 
     final sale = saleDetails['sale'];
     final List items = saleDetails['items'];
@@ -58,10 +109,15 @@ class PdfService {
       }
     }
 
-    // Normal Total = Total + Discount  (Discount = sum of (Normal - Our) x Qty)
+    // TotalAmount = grand total (subtotal + tax). Old invoices have tax 0.
+    // Subtotal     = Total - Tax
+    // Normal Total = Subtotal + Discount  (Discount = sum of (Normal - Our) x Qty)
     final double total = (sale['TotalAmount'] as num).toDouble();
     final double discount = (sale['TotalDiscount'] as num).toDouble();
-    final double normalTotal = total + discount;
+    final double taxAmount = (sale['TaxAmount'] as num?)?.toDouble() ?? 0;
+    final double taxPercent = (sale['TaxPercent'] as num?)?.toDouble() ?? 0;
+    final double subtotal = total - taxAmount;
+    final double normalTotal = subtotal + discount;
     final double cash = (sale['CashReceived'] as num).toDouble();
     final double balance = (sale['Balance'] as num).toDouble();
 
@@ -86,6 +142,9 @@ class PdfService {
           items: items,
           normalTotal: normalTotal,
           discount: discount,
+          subtotal: subtotal,
+          taxPercent: taxPercent,
+          taxAmount: taxAmount,
           total: total,
           cash: cash,
           balance: balance,
@@ -109,6 +168,9 @@ class PdfService {
           items: items,
           normalTotal: normalTotal,
           discount: discount,
+          subtotal: subtotal,
+          taxPercent: taxPercent,
+          taxAmount: taxAmount,
           total: total,
           cash: cash,
           balance: balance,
@@ -135,6 +197,9 @@ class PdfService {
     required List items,
     required double normalTotal,
     required double discount,
+    required double subtotal,
+    required double taxPercent,
+    required double taxAmount,
     required double total,
     required double cash,
     required double balance,
@@ -145,10 +210,12 @@ class PdfService {
         // Header - Business Info
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          // end = Invoice No / Date sit at the bottom, next to the divider
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
           children: [
             pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              // end = store name block sits at the bottom, next to the divider
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
                 if (logo != null) ...[
                   pw.SizedBox(
@@ -248,8 +315,13 @@ class PdfService {
               children: [
                 pw.Text('Normal Total: $cur ${normalTotal.toStringAsFixed(2)}'),
                 pw.Text('Discount: $cur ${discount.toStringAsFixed(2)}'),
+                if (taxPercent > 0) ...[
+                  pw.Text('Subtotal: $cur ${subtotal.toStringAsFixed(2)}'),
+                  pw.Text(
+                      'Tax (${_fmtPct(taxPercent)}%): $cur ${taxAmount.toStringAsFixed(2)}'),
+                ],
                 pw.Text(
-                  'Total Amount: $cur ${total.toStringAsFixed(2)}',
+                  '${taxPercent > 0 ? 'Grand Total' : 'Total Amount'}: $cur ${total.toStringAsFixed(2)}',
                   style: pw.TextStyle(
                       fontSize: 14, fontWeight: pw.FontWeight.bold),
                 ),
@@ -286,6 +358,9 @@ class PdfService {
     required List items,
     required double normalTotal,
     required double discount,
+    required double subtotal,
+    required double taxPercent,
+    required double taxAmount,
     required double total,
     required double cash,
     required double balance,
@@ -356,6 +431,11 @@ class PdfService {
         // Summary
         line('Normal Total', '$cur ${normalTotal.toStringAsFixed(2)}'),
         line('Discount', '$cur ${discount.toStringAsFixed(2)}'),
+        if (taxPercent > 0) ...[
+          line('Subtotal', '$cur ${subtotal.toStringAsFixed(2)}'),
+          line('Tax (${_fmtPct(taxPercent)}%)',
+              '$cur ${taxAmount.toStringAsFixed(2)}'),
+        ],
         pw.SizedBox(height: 2),
         line('TOTAL', '$cur ${total.toStringAsFixed(2)}',
             style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),

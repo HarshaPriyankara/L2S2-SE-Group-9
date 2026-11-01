@@ -83,10 +83,25 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   double get _total => _cart.fold(0.0, (s, l) => s + l.subTotal);
   // Discount = Normal Total - Our Total
   double get _discount => _normalTotal - _total;
+
+  // CR-01: tax (VAT) is applied to the discounted subtotal (_total).
+  // Rounded to 2 decimals so the stored amounts match a manual calculation.
+  double _round2(double v) => (v * 100).roundToDouble() / 100;
+  double get _taxPercent => AppSession.taxPercent;
+  double get _taxAmount => _round2(_total * _taxPercent / 100);
+  // Grand total = subtotal + tax  -> the amount the customer really pays
+  double get _grandTotal => _round2(_total + _taxAmount);
+
   double get _cashReceived => _cashController.text.trim().isEmpty
-      ? _total
+      ? _grandTotal
       : (double.tryParse(_cashController.text.trim()) ?? 0);
-  double get _balance => _paymentType == 'CASH' ? _cashReceived - _total : 0;
+  double get _balance =>
+      _paymentType == 'CASH' ? _cashReceived - _grandTotal : 0;
+
+  // 7.0 -> "7", 7.5 -> "7.5"
+  String _fmtPct(double p) => p == p.roundToDouble()
+      ? p.toInt().toString()
+      : p.toStringAsFixed(2).replaceFirst(RegExp(r'0+$'), '');
 
   void _msg(String text, {Color color = Colors.red}) {
     if (!mounted) return;
@@ -257,10 +272,56 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     }
   }
 
+  // ------------------------------------------------------------ void invoice
+  void _confirmVoid(Map<String, dynamic> sale) {
+    final int billId = sale['BillID'] as int;
+    final String no = AppSession.formatInvoiceNo(billId);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Void Invoice'),
+        content: Text(
+            'Are you sure you want to void invoice $no?\n\n'
+            'The sold items will be returned to stock and the invoice will be '
+            'excluded from the dashboard. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              try {
+                final ok = await DatabaseHelper.instance.voidSale(billId);
+                if (ok) {
+                  _msg('Invoice $no voided. Stock updated.',
+                      color: Colors.green);
+                } else {
+                  _msg('Invoice $no is already voided.',
+                      color: Colors.orange);
+                }
+                await _loadAll(); // refresh history + stock
+              } catch (e) {
+                _msg('Could not void invoice: $e');
+              }
+            },
+            child: const Text('Void'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ------------------------------------------------------------ checkout
   Future<void> _checkout() async {
     if (_cart.isEmpty) return;
-    if (_paymentType == 'CASH' && _cashReceived < _total) {
+    if (_paymentType == 'CASH' && _cashReceived < _grandTotal) {
       _msg('Cash received is less than the total');
       return;
     }
@@ -269,9 +330,11 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     try {
       final saleData = {
         'CustomerID': _customerId,
-        'TotalAmount': _total,
+        'TotalAmount': _grandTotal, // grand total (subtotal + tax)
         'TotalDiscount': _discount,
-        'CashReceived': _paymentType == 'CASH' ? _cashReceived : _total,
+        'TaxAmount': _taxAmount,
+        'TaxPercent': _taxPercent,
+        'CashReceived': _paymentType == 'CASH' ? _cashReceived : _grandTotal,
         'Balance': _balance,
         'PaymentType': _paymentType,
       };
@@ -556,8 +619,14 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                 const SizedBox(height: 8),
                 _totalRow('Discount', _discount,
                     color: _discount > 0 ? Colors.green : null),
+                if (_taxPercent > 0) ...[
+                  const SizedBox(height: 8),
+                  _totalRow('Subtotal', _total),
+                  const SizedBox(height: 8),
+                  _totalRow('Tax (${_fmtPct(_taxPercent)}%)', _taxAmount),
+                ],
                 const Divider(height: 24),
-                _totalRow('TOTAL', _total, big: true),
+                _totalRow('TOTAL', _grandTotal, big: true),
                 const SizedBox(height: 12),
                 SegmentedButton<String>(
                   segments: const [
@@ -589,7 +658,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                               decimal: true),
                           decoration: InputDecoration(
                               isDense: true,
-                              hintText: _total.toStringAsFixed(2)),
+                              hintText: _grandTotal.toStringAsFixed(2)),
                         ),
                       ),
                     ],
@@ -648,11 +717,49 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       itemCount: _sales.length,
       itemBuilder: (context, index) {
         final sale = _sales[index];
+        final bool voided = ((sale['IsVoided'] as num?)?.toInt() ?? 0) == 1;
         return Card(
+          color: voided ? Colors.grey.shade100 : null,
           child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.receipt)),
-            title: Text(
-                'Invoice ${AppSession.formatInvoiceNo(sale['BillID'] as int)} - ${sale['CustomerName'] ?? 'Cash Customer'}'),
+            leading: CircleAvatar(
+              backgroundColor: voided ? Colors.grey.shade400 : null,
+              child: Icon(voided ? Icons.block : Icons.receipt),
+            ),
+            title: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    'Invoice ${AppSession.formatInvoiceNo(sale['BillID'] as int)} - ${sale['CustomerName'] ?? 'Cash Customer'}',
+                    overflow: TextOverflow.ellipsis,
+                    style: voided
+                        ? const TextStyle(
+                            decoration: TextDecoration.lineThrough,
+                            color: Colors.grey,
+                          )
+                        : null,
+                  ),
+                ),
+                if (voided) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'VOIDED',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
             subtitle: Text(
                 'Date: ${sale['BillDate']} | ${sale['PaymentType']} | Total: ${AppSession.currency} ${(sale['TotalAmount'] as num).toStringAsFixed(2)}'),
             trailing: Row(
@@ -676,6 +783,12 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                     if (d != null) await _savePdf(d);
                   },
                 ),
+                if (!voided)
+                  IconButton(
+                    icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
+                    tooltip: 'Void invoice',
+                    onPressed: () => _confirmVoid(sale),
+                  ),
               ],
             ),
           ),

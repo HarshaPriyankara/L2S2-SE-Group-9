@@ -7,7 +7,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String _dbFileName = 'easybill.db';
-  static const int _dbVersion = 7; // 6 -> 7 (invoice / POS settings columns)
+  static const int _dbVersion = 8; // 7 -> 8 (CR-01: tax / VAT columns)
 
   DatabaseHelper._init();
 
@@ -48,6 +48,11 @@ class DatabaseHelper {
       await _ensureColumn(db, 'Store', e.key, e.value);
     }
     await _ensureColumn(db, 'Products', 'Barcode', 'TEXT');
+    await _ensureColumn(db, 'Sales', 'IsVoided', 'INTEGER DEFAULT 0');
+    // CR-01: tax (VAT)
+    await _ensureColumn(db, 'Store', 'TaxPercent', 'REAL DEFAULT 0');
+    await _ensureColumn(db, 'Sales', 'TaxAmount', 'REAL DEFAULT 0');
+    await _ensureColumn(db, 'Sales', 'TaxPercent', 'REAL DEFAULT 0');
     await _createBarcodeIndex(db);
   }
 
@@ -82,7 +87,8 @@ class DatabaseHelper {
         InvoicePrefix TEXT,
         ReceiptSize TEXT,
         LowStockLimit INTEGER,
-        AutoPrint INTEGER
+        AutoPrint INTEGER,
+        TaxPercent REAL DEFAULT 0
       )
     ''');
 
@@ -140,6 +146,8 @@ class DatabaseHelper {
         CustomerID INTEGER,
         TotalAmount REAL DEFAULT 0.00,
         TotalDiscount REAL DEFAULT 0.00,
+        TaxAmount REAL DEFAULT 0.00,
+        TaxPercent REAL DEFAULT 0.00,
         CashReceived REAL DEFAULT 0.00,
         Balance REAL DEFAULT 0.00,
         CashierName TEXT,
@@ -257,6 +265,12 @@ class DatabaseHelper {
       for (final e in cols.entries) {
         await db.execute('ALTER TABLE Store ADD COLUMN ${e.key} ${e.value}');
       }
+    }
+    if (oldVersion < 8) {
+      // CR-01: configurable tax (VAT). Old invoices keep tax 0.
+      await db.execute('ALTER TABLE Store ADD COLUMN TaxPercent REAL DEFAULT 0');
+      await db.execute('ALTER TABLE Sales ADD COLUMN TaxAmount REAL DEFAULT 0');
+      await db.execute('ALTER TABLE Sales ADD COLUMN TaxPercent REAL DEFAULT 0');
     }
   }
 
@@ -561,6 +575,46 @@ class DatabaseHelper {
     return billId;
   }
 
+  // 1b. Void an invoice: mark it as voided and put the sold quantities back
+  //     into stock. Returns false if the invoice is missing or already voided.
+  Future<bool> voidSale(int billId) async {
+    final db = await instance.database;
+    bool done = false;
+
+    await db.transaction((txn) async {
+      final sale = await txn.query(
+        'Sales',
+        columns: ['IsVoided'],
+        where: 'BillID = ?',
+        whereArgs: [billId],
+      );
+      if (sale.isEmpty) return;
+      if (((sale.first['IsVoided'] as num?)?.toInt() ?? 0) == 1) return;
+
+      final items = await txn.query(
+        'SaleItems',
+        where: 'BillID = ?',
+        whereArgs: [billId],
+      );
+      for (final item in items) {
+        await txn.rawUpdate(
+          'UPDATE Products SET StockQuantity = StockQuantity + ? WHERE ProductID = ?',
+          [item['Quantity'], item['ProductID']],
+        );
+      }
+
+      await txn.update(
+        'Sales',
+        {'IsVoided': 1},
+        where: 'BillID = ?',
+        whereArgs: [billId],
+      );
+      done = true;
+    });
+
+    return done;
+  }
+
   // 2. get all sales
   Future<List<Map<String, dynamic>>> getSales() async {
     final db = await instance.database;
@@ -618,6 +672,7 @@ class DatabaseHelper {
     'LowStockLimit': 5,
     'AutoLogoutMinutes': 10, // 0 = off
     'AutoPrint': 0, // 1 = open print preview after every sale
+    'TaxPercent': 0.0, // CR-01: VAT % added to every invoice (0 = no tax)
   };
 
   Future<Map<String, dynamic>> getStore() async {
@@ -786,6 +841,7 @@ class DatabaseHelper {
     return await db.update(
       'Expenses',
       {
+        'ExpenseDate': row['ExpenseDate'],
         'Amount': row['Amount'],
         'PaymentType': row['PaymentType'],
         'Notes': row['Notes'],
